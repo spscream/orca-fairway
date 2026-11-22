@@ -1,4 +1,12 @@
-# Fairway for Orca — verification report 0.4.2
+# Fairway for Orca — verification report 0.4.3
+
+Adopted the operator-selected open-frame buoy direction. Original artwork uses a broad coral float, a short ivory X-braced frame, a flat coral lantern cap, and turquoise waves. The reference was used as a design direction, not copied as an asset. Export: PNG, 256×256, 64052 bytes; manifest and panel asset paths unchanged.
+
+Checks: `npm run validate`, live `plugin dev watch` component check, `npm run audit:public`, and `git diff --check`. Panel screenshot inspected at 502×959: `settled: true`, `errors: []`, `pendingRequests: 0`. The temporary development plugin was unloaded. Code tests were not repeated for the artwork-only change; CI runs the standalone suite on the published commit. The last full Orca suite passed 55/55 in 0.4.1.
+
+One image-generation request was used for this design. No JEV requests, real agent launches, new permissions, routing changes, or access to secrets. Sidebar icon restrictions remain unchanged.
+
+## Previous release: 0.4.2
 
 Replaced the upright buoy artwork with a top-down channel symbol: an ivory trapezoid between separate red and green diamond markers. The icon path and panel code are unchanged. Export: PNG, 256×256, 56349 bytes. No configuration, permissions, localization, or routing changes.
 

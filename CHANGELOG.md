@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3
+
+- Adopted the selected open-frame buoy direction: broad float, X brace, flat lantern cap, and waves.
+- Original artwork in Fairway colors; plugin icon and panel screenshot updated.
+
 ## 0.4.2
 
 - Replaced the upright buoy with a top-down fairway between red and green diamond markers.

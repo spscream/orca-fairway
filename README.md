@@ -1,6 +1,6 @@
 # Fairway for Orca
 
-<img src="assets/fairway-icon.png" width="96" height="96" alt="Fairway channel markers icon">
+<img src="assets/fairway-icon.png" width="96" height="96" alt="Fairway open-frame buoy icon">
 
 An Orca plugin that uses JEV to select an allowlisted **agent + model + effort** profile, then explicitly dispatches the task through Orca. Supports Codex, Pi, and Cursor Agent without changing Orca itself.
 
@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.4.2 --json
+orca plugin install spscream/orca-fairway@v0.4.3 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -122,7 +122,7 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 ## Release status
 
-0.4.2 uses two flat channel markers flanking an ivory fairway in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so its standard branch icon remains. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
+0.4.3 uses an original open-frame buoy with a broad float and turquoise waves in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so its standard branch icon remains. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
 
 0.4.0 adds automatic panel localization for all 11 built-in Orca locales without changing settings keys, persisted user content, protocols, or routing behavior. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
