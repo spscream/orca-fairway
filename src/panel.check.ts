@@ -29,7 +29,7 @@ export default defineCheck({
   budgetExhausted: budgetScenario(false), unlimitedReady: budgetScenario(true),
   automaticRunning: automaticScenario('running'), automaticPaused: automaticScenario('paused'),
   balanceReady: { requests: { 'fairway.status': { config: DEFAULT_CONFIG, ledger: { calls: 0, reservedMicrousd: 0 }, workspace: 'synthetic', lastPlan: null, workflow: null, keyPresent: true, bridgePath: null, balance: { account: { state: 'available', remainingUsd: 75.25 }, key: { state: 'available', remainingUsd: 4.5 }, checkedAt: 1795000000000 } } } },
-  balanceRestricted: { requests: { 'fairway.status': { config: DEFAULT_CONFIG, ledger: { calls: 0, reservedMicrousd: 0 }, workspace: 'synthetic', lastPlan: null, workflow: null, keyPresent: true, bridgePath: null, balance: { account: { state: 'restricted', remainingUsd: null }, key: { state: 'unlimited', remainingUsd: null }, checkedAt: 1795000000000 } } } },
+  balanceRestricted: { persisted: { plugin: { tab: 'statistics' } }, requests: { 'fairway.status': { config: DEFAULT_CONFIG, ledger: { calls: 0, reservedMicrousd: 0 }, workspace: 'synthetic', lastPlan: null, workflow: null, keyPresent: true, bridgePath: null, balance: { account: { state: 'restricted', remainingUsd: null }, key: { state: 'unlimited', remainingUsd: null }, checkedAt: 1795000000000 } } } },
   empty: { results: { 'workspace.readContext': null } },
   ready: { results: workspace },
   recommendation: { results: workspace, storage: { lastPlan: plan as any } },

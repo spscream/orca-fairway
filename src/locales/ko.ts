@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Statistics": "통계",
+  "JEV usage": "JEV 사용량",
   "Unable to load status.": "상태를 불러오지 못했습니다.",
   "Finish the active plan or confirm its executor has ended before starting another plan.": "다른 계획을 시작하기 전에 활성 계획을 완료하거나 실행 종료를 확인하세요.",
   "Update standard and deep to Codex 6.2": "standard 및 deep을 Codex 6.2로 업데이트",

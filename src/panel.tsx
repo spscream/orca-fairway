@@ -188,9 +188,15 @@ function settingsForm() {
 }
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy), errorMessage = read(error)
+  const section = read(tab), account = s?.balance?.account
+  const compactBalance = account?.state === 'available' && account.remainingUsd !== null
+    ? '$' + account.remainingUsd.toFixed(2) : '—'
   return <Stack gap="md">
     <Row justify="between" align="center" wrap><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{!s ? (read(statusError) ? '—' : t("Working")) : s.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
-    <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
+    <Row align="center" justify="between" gap="xs" wrap>
+      <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
+      {section !== 'statistics' ? <Button variant="ghost" size="sm" onPress={() => set(tab, 'statistics')}>{t('OpenRouter balance')} · {compactBalance}</Button> : null}
+    </Row>
     {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
     {read(statusError) ? <Callout tone="warning" title={t('Unable to load status.')}><Button disabled={read(loadingStatus)} onPress={refresh}>{t('Refresh status')}</Button></Callout> : null}
     {!s && read(loadingStatus) ? <Spinner label={t("Working")} /> : null}
@@ -198,7 +204,7 @@ export default function Panel() {
     <Select label={t("Section")} value={read(tab)} options={[
       { value: 'workflow', label: t('Workflow') }, { value: 'task', label: t('Task') },
       { value: 'settings', label: t('Settings') }, { value: 'pi', label: 'Pi Auto' },
-      { value: 'history', label: t('Audit log') },
+      { value: 'statistics', label: t('Statistics') }, { value: 'history', label: t('Audit log') },
     ]} onChange={v => { set(tab, v); if (v === 'history') void loadHistory() }} />
       {read(tab) === 'workflow' ? workflowPanel(s, w => {
         set(error, ''); reconcileWorkflow(w)
@@ -257,20 +263,28 @@ export default function Panel() {
        : null}
       {read(tab) === 'history' ? <Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text>{read(journalLoading) ? <Spinner label={t("Working")} /> : read(journalError) ? <Text tone="warning">{t("Unable to load events. Try again.")}</Text> : read(journal) === '[]' ? <Text muted>{t("No events yet")}</Text> : <Stack gap="sm">{(() => { try { return (JSON.parse(read(journal) || '[]') as Record<string, unknown>[]).map((event, i) => <Text key={String(i)}>{typeof event.at === 'number' ? new Date(event.at).toLocaleString() : '—'} · {displayState(String(event.state ?? ''))} · {String(event.profile ?? event.stepId ?? event.agent ?? '—')}</Text>) } catch { return <Text>{t("Unable to load events. Try again.")}</Text> } })()}<Collapsible title={t("Details")}><Code block>{read(journal) || '[]'}</Code></Collapsible></Stack>}<Button variant="ghost" disabled={read(journalLoading)} onPress={loadHistory}>{t("Refresh status")}</Button></Stack> : null}
 
-    <Card title={t('OpenRouter balance')}>
-      <Stack gap="sm">
-        {read(balanceLoading) ? <Spinner label={t('Refresh balance')} /> : null}
-        {read(balanceError) ? <Text tone="warning">{t('Unable to refresh balance. Try again.')}</Text> : null}
-        <Stack gap="xs"><Text muted>{t('Account balance')}</Text><Text>{balanceText(s?.balance?.account)}</Text></Stack>
-        <Stack gap="xs"><Text muted>{t('Key limit remaining')}</Text><Text>{balanceText(s?.balance?.key)}</Text></Stack>
-        <Text muted size="xs">{t('Read-only request; separate from the Fairway budget.')}</Text>
-        {!s?.keyPresent ? <Text muted>{t('Save an OpenRouter key in Settings.')}</Text> : null}
-        {s?.balance ? <Text muted size="xs">{t('Last checked:')} <RelativeTime at={s.balance.checkedAt} /></Text> : null}
-        <Button variant="ghost" size="sm" icon="refresh" disabled={!s?.keyPresent || read(balanceLoading)} onPress={refreshBalance}>{t('Refresh balance')}</Button>
-      </Stack>
-    </Card>
-    {s?.config.unlimitedJev ? <Badge tone="warning">{t('Unlimited JEV decisions')}</Badge> : null}
-    <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? '—'}. {t('Reserved:')} {s ? <>${(s.ledger.reservedMicrousd / 1e6).toFixed(6)}</> : '—'}.</Text>
+    {section === 'statistics' ? <Stack gap="md">
+      <Card title={t('OpenRouter balance')}>
+        <Stack gap="sm">
+          {read(balanceLoading) ? <Spinner label={t('Refresh balance')} /> : null}
+          {read(balanceError) ? <Text tone="warning">{t('Unable to refresh balance. Try again.')}</Text> : null}
+          <KeyValue items={[
+            { label: t('Account balance'), value: balanceText(account) },
+            { label: t('Key limit remaining'), value: balanceText(s?.balance?.key) },
+          ]} />
+          <Text muted size="xs">{t('Read-only request; separate from the Fairway budget.')}</Text>
+          {s && !s.keyPresent ? <Text muted>{t('Save an OpenRouter key in Settings.')}</Text> : null}
+          {s?.balance ? <Text muted size="xs">{t('Last checked:')} <RelativeTime at={s.balance.checkedAt} /></Text> : null}
+          <Button variant="ghost" size="sm" icon="refresh" disabled={!s?.keyPresent || read(balanceLoading)} onPress={refreshBalance}>{t('Refresh balance')}</Button>
+        </Stack>
+      </Card>
+      <Card title={t('JEV usage')}>
+        <Stack gap="xs">
+          <Text>{t('JEV attempts:')} {s?.ledger.calls ?? '—'}{s ? ' / ' + (s.config.unlimitedJev ? t('Unlimited') : s.config.maxCalls) : ''}</Text>
+          <Text>{t('Reserved:')} {s ? <>${(s.ledger.reservedMicrousd / 1e6).toFixed(6)} / {s.config.unlimitedJev ? t('Unlimited') : '$' + (s.config.budgetMicrousd / 1e6).toFixed(6)}</> : '—'}</Text>
+        </Stack>
+      </Card>
+    </Stack> : null}
     <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
   </Stack>
 }

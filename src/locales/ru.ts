@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Statistics": "Статистика",
+  "JEV usage": "Учёт JEV",
   "Unable to load status.": "Не удалось загрузить состояние.",
   "Finish the active plan or confirm its executor has ended before starting another plan.": "Перед запуском другого плана завершите активный план или подтвердите завершение его исполнителя.",
   "Update standard and deep to Codex 6.2": "Обновить standard и deep до Codex 6.2",

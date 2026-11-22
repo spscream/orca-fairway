@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.8.5 --json
+orca plugin install spscream/orca-fairway@v0.8.6 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -94,7 +94,7 @@ An accepted Orca dispatch does not prove task completion or the model that actua
 
 ## OpenRouter balance
 
-The panel shows account funds and the current key’s remaining limit as separate values. Click **Refresh balance** to make an explicit read-only query, even with paid JEV decisions disabled. Activation and ordinary status refresh do not query OpenRouter. Results stay in memory for 30 seconds; concurrent refreshes share the same requests. Replacing or deleting the key cancels pending balance requests and clears the cached result.
+The compact OpenRouter balance button opens **Statistics**, where account funds, the key’s remaining limit and Fairway’s JEV usage are shown separately. An unavailable account balance appears as a dash in the compact display. Click **Refresh balance** to make an explicit read-only query, even with paid JEV decisions disabled. Activation and ordinary status refresh do not query OpenRouter. Results stay in memory for 30 seconds; concurrent refreshes share the same requests. Replacing or deleting the key cancels pending balance requests and clears the cached result.
 
 The [credits endpoint](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits) requires a management key. With a normal generation key, the account row may show **Management key required** while the [current-key endpoint](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key) provides its remaining limit. **No key limit** is not an unlimited account balance. Fairway does not request an extra management credential; do not replace your generation credential just to populate this display.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.6
+
+- Show the cached OpenRouter account balance in a compact button.
+- Move balance details, key limit and JEV usage to the Statistics section.
+
 ## 0.8.5
 
 - Check pause immediately before dispatch and guard the automatic slot until the preceding executor finishes.

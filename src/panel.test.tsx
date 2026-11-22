@@ -142,11 +142,17 @@ test('balance refresh is explicit and a restricted account never displays fabric
   const view = await mount(panel, { host })
   try {
     assert.equal(requests, 0)
+    assert.equal(view.find({ text: 'Refresh balance' }), null)
+    await view.press({ text: 'OpenRouter balance · —' })
+    assert.equal(requests, 0)
     await view.press({ text: 'Refresh balance' }); assert.equal(requests, 1)
     const tree = JSON.stringify(view.tree())
     assert.ok(tree.includes('Management key required')); assert.ok(tree.includes('$4.0000'))
-    assert.ok(view.find({ text: 'Account balance', type: 'Text' }))
-    assert.ok(view.find({ text: 'Management key required', type: 'Text' }))
+    assert.ok(tree.includes('Account balance'))
+    assert.ok(tree.includes('Key limit remaining'))
+    await view.select({ label: 'Section' }, 'settings')
+    assert.ok(view.find({ text: 'OpenRouter balance · —' }))
+    assert.equal(view.find({ text: 'Refresh balance' }), null)
     assert.ok(!tree.includes('$0.0000'))
     assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, [])
   } finally { await view.unmount() }
@@ -274,9 +280,16 @@ test('F08: balance errors are local and a successful retry clears them without e
     'fairway.balance': () => { if (++reads === 1) throw new Error('synthetic failure'); return { account: { state: 'available', remainingUsd: 4 }, key: { state: 'unlimited', remainingUsd: null }, checkedAt: 1 } }
   } }) })
   await view.type({ label: 'Task description' }, 'Synthetic'); await view.press({ text: 'Select profile' })
+  await view.select({ label: 'Section' }, 'statistics')
   await view.press({ text: 'Refresh balance' }); assert.ok(view.find({ text: 'Unable to refresh balance. Try again.' }))
   await view.press({ text: 'Refresh balance' }); assert.equal(view.find({ text: 'Unable to refresh balance. Try again.' }), null)
   assert.ok(JSON.stringify(view.tree()).includes('$4.0000')); assert.ok(JSON.stringify(view.tree()).includes('Operation stopped'))
+  for (const section of ['workflow', 'task', 'settings', 'pi']) {
+    await view.select({ label: 'Section' }, section)
+    assert.ok(view.find({ text: 'OpenRouter balance · $4.00' }))
+    assert.equal(view.find({ text: 'Refresh balance' }), null)
+  }
+  assert.equal(reads, 2)
   await view.unmount()
 })
 test('F09: multibyte task and coordinator inputs block requests before byte limits are exceeded', async () => {
