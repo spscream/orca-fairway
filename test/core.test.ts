@@ -2,10 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { Engine } from '../src/core/engine.ts'
-import { DEFAULT_CONFIG, validateConfig } from '../src/core/config.ts'
+import { DEFAULT_CONFIG, RouterError, validateConfig } from '../src/core/config.ts'
 import { parseJson } from '../src/core/json.ts'
 import { DECISIONS_URL, makeRequest, RESERVATION_MICROUSD, validateAnswer, validatePrice } from '../src/core/jev.ts'
-import { childEnvironment, codexMetadataHome, launchArgs, NativeRuntime, orcaExecutable } from '../src/core/runtime.ts'
+import { childEnvironment, codexMetadataHome, launchArgs, NativeRuntime, orcaExecutable, runFile } from '../src/core/runtime.ts'
 import type { Config, Runtime, Store, Transport, Workspace } from '../src/core/types.ts'
 const workspace: Workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' }
 const metadata = { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } } }
@@ -139,7 +139,7 @@ test('safe argv preserves hostile text, native Cursor alias and strips JEV crede
 })
 test('Codex metadata must match both the model pair and the actual CLI version', async () => {
   const cache = { fetched_at: new Date().toISOString(), client_version: '0.synthetic', models: [{ slug: 'gpt-test', visibility: 'list', supported_reasoning_levels: [{ effort: 'low' }] }] }
-  const runtime = new NativeRuntime({}, async (_file, args) => ({ code: 0, stdout: args[0] === 'account' ? '{"ok":true,"result":{"activeAccountId":null}}' : 'codex-cli 0.synthetic' }), async () => JSON.stringify(cache))
+  const runtime = new NativeRuntime({}, async (_file, args) => { if (args[0] === 'debug') throw new Error('synthetic unsupported command'); return { code: 0, stdout: args[0] === 'account' ? '{"ok":true,"result":{"activeAccountId":null}}' : 'codex-cli 0.synthetic' } }, async () => JSON.stringify(cache))
   const profile = { ...DEFAULT_CONFIG.profiles[0]!, model: 'gpt-test' }
   assert.equal((await runtime.verify(profile)).verified, true)
   cache.client_version = 'older'; assert.equal((await runtime.verify(profile)).verified, false)
@@ -166,7 +166,7 @@ test('cancelling during metadata verification cannot resurrect a shadow plan', a
 })
 test('Codex verification uses the Orca-selected managed account instead of a mismatched system cache', async () => {
   const id = '00000000-0000-0000-0000-000000000001', paths: string[] = []
-  const runner: ConstructorParameters<typeof NativeRuntime>[1] = async (_file, args) => ({ code: 0, stdout: args[0] === 'account' ? JSON.stringify({ ok: true, result: { activeAccountId: id } }) : 'codex-cli 0.synthetic' })
+  const runner: ConstructorParameters<typeof NativeRuntime>[1] = async (_file, args) => { if (args[0] === 'debug') throw new Error('synthetic unsupported command'); return { code: 0, stdout: args[0] === 'account' ? JSON.stringify({ ok: true, result: { activeAccountId: id } }) : 'codex-cli 0.synthetic' } }
   const runtime = new NativeRuntime({ CODEX_HOME: '/synthetic-system-home' }, runner, async path => {
     paths.push(path); return JSON.stringify({ client_version: path.includes(id) ? '0.synthetic' : 'older', fetched_at: new Date().toISOString(), models: [{ slug: 'synthetic-model', visibility: 'list', supported_reasoning_levels: [{ effort: 'medium' }] }] })
   })
@@ -174,4 +174,45 @@ test('Codex verification uses the Orca-selected managed account instead of a mis
   assert.equal(result.verified, true); assert.equal(paths.length, 1); assert.ok(paths[0]!.includes(id)); assert.ok(paths[0]!.endsWith('models_cache.json'))
   assert.equal(codexMetadataHome({ ok: true, result: { activeAccountId: id, activeAccountIdsByRuntime: { host: null } } }, { CODEX_HOME: '/synthetic-system' }), '/synthetic-system')
   assert.throws(() => codexMetadataHome({ ok: true, result: { activeAccountId: '../outside' } }, {}))
+})
+
+test('Codex bundled catalog comes from a bounded metadata-only command, without touching shared caches', async () => {
+  const calls: string[][] = []
+  const runtime = new NativeRuntime({ OPENROUTER_API_KEY: 'synthetic-secret', OPENROUTER_TOKEN: 'synthetic-secret' }, async (file, args, options) => {
+    calls.push([file, ...args]); assert.equal(options.timeout, 10000); assert.equal(options.maxBuffer, 2 * 1024 * 1024)
+    assert.equal(options.env.OPENROUTER_API_KEY, undefined); assert.equal(options.env.OPENROUTER_TOKEN, undefined)
+    return { code: 0, stdout: JSON.stringify({ models: [{ slug: 'gpt-test', visibility: 'list', supported_reasoning_levels: [{ effort: 'low' }], model_messages: { instructions: 'Synthetic ignored instructions' } }] }) }
+  }, async () => { throw new Error('must not read or rewrite caches') })
+  assert.deepEqual(await runtime.verify({ ...DEFAULT_CONFIG.profiles[0]!, model: 'gpt-test' }), { verified: true, source: 'codex_bundled_catalog' })
+  assert.deepEqual(calls, [['codex', 'debug', 'models', '--bundled']])
+})
+test('Codex bundled catalog refuses absent models, hidden models and unsupported efforts without cache fallback', async () => {
+  const catalog = { models: [{ slug: 'gpt-test', visibility: 'list', supported_reasoning_levels: [{ effort: 'low' }] }] }
+  const runtime = new NativeRuntime({}, async () => ({ code: 0, stdout: JSON.stringify(catalog) }), async () => { throw new Error('must not fall back') })
+  assert.equal((await runtime.verify({ ...DEFAULT_CONFIG.profiles[0]!, model: 'missing' })).verified, false)
+  assert.equal((await runtime.verify({ ...DEFAULT_CONFIG.profiles[1]!, model: 'gpt-test' })).verified, false)
+  catalog.models[0]!.visibility = 'hidden'
+  assert.equal((await runtime.verify({ ...DEFAULT_CONFIG.profiles[0]!, model: 'gpt-test' })).verified, false)
+})
+test('Codex bundled catalog rejects malformed, duplicate and oversized data instead of using cache', async () => {
+  let stdout = '{"models":[],"models":[]}'
+  const runtime = new NativeRuntime({}, async () => ({ code: 0, stdout }), async () => { throw new Error('must not fall back') })
+  await assert.rejects(runtime.verify(DEFAULT_CONFIG.profiles[0]!), /duplicate_json_key/)
+  stdout = JSON.stringify({ models: [{ slug: 'gpt-test' }, { slug: 'gpt-test' }] })
+  await assert.rejects(runtime.verify({ ...DEFAULT_CONFIG.profiles[0]!, model: 'gpt-test' }), /invalid_codex_catalog/)
+  stdout = ' '.repeat(2 * 1024 * 1024 + 1)
+  await assert.rejects(runtime.verify(DEFAULT_CONFIG.profiles[0]!), /invalid_codex_catalog/)
+})
+test('Codex metadata command timeout still blocks a mismatched fallback catalog', async () => {
+  const runtime = new NativeRuntime({}, async (_file, args) => {
+    if (args[0] === 'debug') throw new Error('synthetic timeout')
+    return { code: 0, stdout: args[0] === 'account' ? '{"ok":true,"result":{"activeAccountId":null}}' : 'codex-cli 0.new' }
+  }, async () => JSON.stringify({ models: [], fetched_at: new Date().toISOString(), client_version: '0.old' }))
+  assert.deepEqual(await runtime.verify(DEFAULT_CONFIG.profiles[0]!), { verified: false, source: 'codex_catalog_version_mismatch' })
+})
+
+test('Codex metadata output overflow is bounded by the process runner and never falls back', async () => {
+  await assert.rejects(runFile(process.execPath, ['-e', 'process.stdout.write("x".repeat(4096))'], { env: {}, timeout: 1000, maxBuffer: 128 }), /command_output_too_large/)
+  const runtime = new NativeRuntime({}, async () => { throw new RouterError('command_output_too_large') }, async () => { throw new Error('must not read fallback') })
+  await assert.rejects(runtime.verify(DEFAULT_CONFIG.profiles[0]!), /command_output_too_large/)
 })

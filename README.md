@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.5.0 --json
+orca plugin install spscream/orca-fairway@v0.5.1 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -74,13 +74,13 @@ Saving settings cancels pending decisions. Changed tasks, effective configuratio
 
 | Agent | Parameters | Pre-dispatch verification |
 | --- | --- | --- |
-| Codex | Orca `--model` and `--effort` | Exact pair in the selected Orca account’s non-secret `models_cache.json`, no older than 7 days, matching `codex --version` |
+| Codex | Orca `--model` and `--effort` | Exact pair in `codex debug models --bundled` from the available binary; older-client fallback: selected Orca account’s non-secret cache, no older than 7 days and matching `codex --version` |
 | Pi | `provider/model`; Orca maps effort to `--thinking` | Explicit `operatorConfirmed: true`; the Auto extension also checks the Pi model registry |
 | Cursor | Exact native alias, `effort: null` | Exact alias from `cursor-agent --list-models`; effort, if any, is part of that alias |
 
 Cursor `auto` is excluded because it does not fix a concrete model. Pi efforts: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, after checking the pair. Manual confirmation cannot bypass Codex or Cursor catalogs.
 
-A mismatched Codex catalog version blocks dispatch. Refresh model metadata through the appropriate Codex version and select again. Fairway does not start a chat to refresh it or read authentication files. A catalog entry does not prove account entitlement or quota.
+Fairway prefers the catalog embedded in the available Codex binary: `codex debug models --bundled`. This metadata-only command skips network refresh and starts no agent. Its output stays private and is bounded to 2 MiB with a 10-second timeout; only model IDs, visibility and efforts are used. A successful response missing the exact pair blocks dispatch, as does malformed output. Only command failure permits the legacy cache fallback, whose version and freshness checks remain mandatory. Fairway never rewrites the shared cache or reads authentication files. A catalog entry does not prove account entitlement or quota.
 
 An accepted Orca dispatch does not prove task completion or the model that actually responded. Observed model/effort fields remain unknown. A lost dispatch response consumes the decision: inspect Orca before any new launch.
 
@@ -132,6 +132,6 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 0.4.3 uses an original open-frame buoy with a broad float and turquoise waves in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so the activity button uses the built-in flag symbol. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
 
-0.5.0 adds explicit read-only OpenRouter balance refresh and fixes managed Codex catalog selection and workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
+0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
 Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.

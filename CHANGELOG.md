@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Verify Codex pairs against `codex debug models --bundled` from the available binary, with no network refresh or agent launch.
+- Avoid shared-cache version conflicts without modifying Codex files; retain strict version/freshness checks for older-client cache fallback.
+- Reject malformed catalogs, duplicate model IDs, unsupported pairs, and oversized responses; bound the metadata command to 10 seconds and 2 MiB.
+
 ## 0.5.0
 
 - Explicit OpenRouter balance refresh: separate account funds and key-limit values, permission-aware errors, timeout and in-memory caching.

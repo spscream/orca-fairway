@@ -1,4 +1,30 @@
-# Fairway for Orca — verification report 0.5.0
+# Fairway for Orca — verification report 0.5.1
+
+Resolved the shared-cache conflict without rewriting Codex files. The installed CLI documents `codex debug models --bundled` as skipping refresh and dumping only the catalog shipped with that binary. Fairway now prefers this offline metadata command. Metadata-only checks in both the coordinator shell and the actual Orca plugin worker verified the synthetic `gpt-6.1-sol` / `medium` pair with source `codex_bundled_catalog`. No prompt, task, network request or agent session is used. The command’s help and catalog were read locally; no external code or secret files were accessed.
+
+Only model IDs, visibility and supported efforts affect verification. The raw bundled data includes other built-in fields, which are ignored and never logged, stored or sent externally. Execution uses fixed argv without a shell, strips OpenRouter/bridge tokens, enforces a 10-second timeout and a 2 MiB output bound. A malformed response, duplicate matching IDs or an unsupported pair fails closed. Only command failure allows the legacy selected-account cache path, still requiring exact CLI version and freshness. Shared cache files are never written. Availability in a bundled catalog does not establish account entitlement or quota.
+
+Exact validation commands:
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+npm run test:orca
+npm run check:orca
+npm run validate
+npm run audit:public
+git diff --check
+```
+
+Final results: **59/59** standalone tests, **76/76** through Orca and **12** panel scenarios, with no issues or warnings. Both type checks, manifest validation and the public-source audit passed. Added offline coverage for bounded fixed argv and stripped secrets, no shared-cache access, exact model/visibility/effort rejection, malformed/duplicate/oversized data (including a real synthetic child-process overflow), and timeout with a mismatched cache. The change adds no dependencies, permissions or UI messages.
+
+Paid requests: **0**. Cost: **$0**. External requests: **0** for this patch. No coordinators, executors, extra AI agents or Orca agent workers were launched. No real task or other working repository was accessed. This session’s API key was not used. End-to-end agent execution remains untested by design.
+
+Usage: after updating to 0.5.1, click **Refresh coordinator profile** in the existing shadow workflow. An exact pair present in the available binary’s bundled catalog becomes verifiable without manually recreating the shared cache. The operator can then explicitly launch the coordinator. No real workflow was refreshed or dispatched during implementation.
+
+## Previous release: 0.5.0
+
 
 Added explicit, read-only OpenRouter balance refresh and repaired workflow action requests. Requests without a subtask now omit `stepId` instead of sending `undefined`, which Orca rejects before the handler. Safe domain error codes survive the panel bridge; raw process output remains hidden. Existing unstarted workflows can refresh their coordinator profile without re-entering the task, contacting JEV, or launching an agent.
 
