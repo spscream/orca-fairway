@@ -27,6 +27,8 @@ Paid/model requests in implementation and tests: **0**, cost **$0**. No extra AI
 
 Usage: in Settings enable **Unlimited JEV decisions**, save once, then return to Workflow and explicitly continue. The operator authorized this setting for the current installation; its five used attempts remain recorded. In finite mode, the panel explains insufficient allowance instead of repeatedly attempting a paused route. Actual automatic executor progression remains untested by this patch because real worker launches were excluded.
 
+Post-install verification on Orca 1.4.269: the stable plugin updated from 0.6.1 to 0.7.0 at commit `6b1fd44daeb8`. With no pending settings draft, the explicitly authorized unlimited switch was enabled and saved through the installed UI. Read-back showed the switch on, Save disabled, the unlimited status badge, and unchanged cumulative accounting of six attempts / $0.078648 observed immediately before this setting change. Other settings and profiles were preserved. No workflow continuation, agent launch or model request was performed. The currently visible workspace had no loaded workflow, so availability of the original plan's Continue action was not asserted. Both release CI runs passed.
+
 ## Previous release: 0.6.1
 
 
