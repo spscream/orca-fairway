@@ -33,6 +33,8 @@ During working-tree checks, the two unreleased operator reports were temporarily
 
 Paid/model requests during this implementation: **0**. Cost: **$0**. No additional coordinators, executors or AI workers were launched or messaged by this session. No secret files or other work repositories were read; no existing working source was sent to OpenRouter. No new dependencies or permissions were added. Existing operator-started agents and their artifacts were preserved.
 
+Post-install check on Orca 1.4.269: the stable plugin updated from 0.5.4 to 0.6.0 with its existing consent, settings and accounting retained. The installed panel rendered with no errors or pending requests. A read-only observation of this session returned `working`, confirming the structured-session metadata path. Only the Workflow tab was opened; no automatic authorization, approval, agent launch or paid request followed. Both release CI runs passed. Screenshots and runtime diagnostics remain private.
+
 ## Remaining limits and usage
 
 No real end-to-end automatic agent run was performed. Structured-chat and terminal completion adapters are covered synthetically; terminal hook availability and account entitlement still depend on the host. Executor checks are self-reported. Independent review agents, isolated worktrees, a lock over unrelated agents in the project, internal-subagent interception and a persistent wakeup service are not implemented. An idle or restarted worker pauses; Orca must stay running. Report/quality failures require operator intervention.
