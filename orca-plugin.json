@@ -2,18 +2,87 @@
   "manifestVersion": 2,
   "id": "fairway",
   "name": "Fairway for Orca",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Choose an allowlisted Codex, Pi or Cursor profile with JEV, then explicitly launch it through Orca. Shadow mode by default.",
-  "author": { "name": "spscream", "url": "https://github.com/spscream" },
+  "author": {
+    "name": "spscream",
+    "url": "https://github.com/spscream"
+  },
   "repository": "https://github.com/spscream/orca-fairway",
   "license": "MIT",
-  "engines": { "orca": ">=1.4.265" },
+  "engines": {
+    "orca": ">=1.4.265"
+  },
   "execution": "trusted-worker",
   "pluginApi": 1,
   "main": "src/worker.ts",
-  "capabilities": [{ "kind": "storage:own" }, { "kind": "secrets:own" }, { "kind": "workspace:read" }, { "kind": "agent:launch" }],
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "secrets:own"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "agent:launch"
+    },
+    {
+      "kind": "settings:own"
+    }
+  ],
   "contributes": {
-    "panels": [{ "id": "fairway", "title": "Fairway", "icon": "branch", "entry": "src/panel.tsx", "ui": "components" }],
-    "commands": [{ "id": "fairway.status", "title": "Fairway: состояние маршрутизатора", "when": "global" }]
+    "panels": [
+      {
+        "id": "fairway",
+        "title": "Fairway",
+        "icon": "branch",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "commands": [
+      {
+        "id": "fairway.status",
+        "title": "Fairway: состояние маршрутизатора",
+        "when": "global"
+      }
+    ],
+    "settings": [
+      {
+        "key": "live",
+        "title": "Запросы JEV",
+        "description": "Разрешить платный подбор профиля. Сам подбор не запускает агента.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "execution",
+        "title": "Явный запуск через Orca",
+        "description": "Разрешить отдельную кнопку запуска проверенного профиля.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "budgetUsd",
+        "title": "Общий бюджет JEV, USD",
+        "description": "Лимит накопленного резерва решений, от 0 до 10 USD. До 6 знаков после точки. Сохранение не обнуляет расходы.",
+        "type": "number",
+        "default": 0.1,
+        "minimum": 0,
+        "maximum": 10
+      },
+      {
+        "key": "maxCalls",
+        "title": "Лимит попыток JEV",
+        "description": "Накопленный лимит, от 0 до 100. Профили и ключ настраиваются в панели Fairway.",
+        "type": "integer",
+        "default": 5,
+        "minimum": 0,
+        "maximum": 100
+      }
+    ]
   }
 }

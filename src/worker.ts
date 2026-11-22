@@ -3,20 +3,36 @@ import type { JsonValue } from 'orca/host'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseJson } from './core/json.ts'
-import { Engine } from './core/engine.ts'
+import { digest, Engine } from './core/engine.ts'
 import { NativeRuntime } from './core/runtime.ts'
-import { record, requireThat, RouterError } from './core/config.ts'
+import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig } from './core/config.ts'
+import { preferences, withPreferences } from './core/preferences.ts'
 import { startBridge } from './core/bridge.ts'
 import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts'
 import type { Status } from './protocol.ts'
 let stop: (() => Promise<void>) | null = null
 export async function deactivate(): Promise<void> { await stop?.(); stop = null }
 export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport) {
-  return function activate(orca: OrcaWorkerApi): void {
-    const store: Store = { get: key => orca.storage.get(key), set: (key, value) => orca.storage.set(key, value as JsonValue) }
+  return async function activate(orca: OrcaWorkerApi): Promise<void> {
+    // Preserve 0.1.0 configuration when adopting Orca's native settings.
+    if (!await orca.storage.get('nativeSettingsMigrated')) {
+      const legacy = await orca.storage.get('config')
+      if (legacy) for (const [key, value] of Object.entries(preferences(validateConfig(legacy)))) await orca.settings.set(key, value)
+      await orca.storage.set('nativeSettingsMigrated', true)
+    }
+    const store: Store = {
+      get: async key => key === 'config'
+        ? withPreferences(validateConfig((await orca.storage.get(key)) ?? DEFAULT_CONFIG), await orca.settings.get())
+        : orca.storage.get(key),
+      set: async (key, value) => {
+        if (key === 'config') for (const [name, setting] of Object.entries(preferences(validateConfig(value)))) await orca.settings.set(name, setting)
+        await orca.storage.set(key, value as JsonValue)
+      }
+    }
     const engine = new Engine(store, runtime, () => orca.secrets.get('openrouter'), transport)
     let bridge: Awaited<ReturnType<typeof startBridge>> | null = null
-    stop = async () => { engine.cancelAll(); await bridge?.close(); bridge = null }
+    const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll() })
+    stop = async () => { settingsChanged.dispose(); engine.cancelAll(); await bridge?.close(); bridge = null }
     const workspace = async (): Promise<Workspace | null> => {
       const context = await orca.host.call('workspace.readContext')
       if (!context?.workspaceId) return null
@@ -29,7 +45,8 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }
     const status = async (): Promise<Status> => {
       const w = await workspace()
-      return { config: await engine.config(), ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: (await store.get('lastPlan') as Plan | null) ?? null, bridgePath: bridge?.path ?? null }
+      const config = await engine.config(), lastPlan = (await store.get('lastPlan') as Plan | null) ?? null
+      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null }
     }
     // Errors expose only fixed codes, never exception strings, task text or child output.
     const safe = <T, R>(action: (input: T) => Promise<R>) => async (input: T): Promise<R> => {

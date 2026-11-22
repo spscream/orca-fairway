@@ -1,11 +1,14 @@
-import { atom, Badge, Button, Callout, Card, Code, Heading, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, type PanelContext } from 'orca'
-import type { Agent, Plan } from './core/types.ts'
+import { atom, Badge, Button, Callout, Card, Code, Heading, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
+import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
+import { DEFAULT_CONFIG } from './core/config.ts'
+import { budgetFromText } from './core/preferences.ts'
 import type { Status } from './protocol.ts'
 const state = atom<Status | null>(null)
 const launching = atom(false)
 const task = atom(''), agent = atom<Agent>('codex'), plan = atom<Plan | null>(null)
 const journal = atom('[]')
-const configText = atom(''), apiKey = atom(''), busy = atom(false), error = atom(''), activeId = atom<string | null>(null)
+const draft = atom<Config>(DEFAULT_CONFIG), budget = atom('0.1'), calls = atom('5'), selectedProfile = atom(0), dirty = atom(false), saving = atom(false)
+const apiKey = atom(''), busy = atom(false), error = atom(''), activeId = atom<string | null>(null)
 const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
   const code = e instanceof Error ? e.message : ''
@@ -13,13 +16,39 @@ function showError(e: unknown): void {
     local_workspace_required: 'Нужно локальное рабочее пространство Orca.', execution_disabled: 'Запуск выключен в настройках Fairway.',
     profile_unverified: 'Пара модели и усилия не подтверждена.', plan_changed: 'Задача или настройки изменились. Подберите профиль заново.',
     plan_not_launchable: 'Решение отменено, просрочено или уже использовано.', plan_already_consumed: 'Повторный запуск этого решения запрещён.',
-    no_profiles_for_agent: 'Добавьте профили выбранного агента в настройках.', invalid_config: 'Проверьте JSON настроек.', invalid_task: 'Описание должно занимать от 1 до 4096 байт UTF-8.'
+    no_profiles_for_agent: 'Добавьте профили выбранного агента в настройках.', invalid_config: 'Проверьте настройки профилей.', invalid_task: 'Описание должно занимать от 1 до 4096 байт UTF-8.',
+    invalid_budget: 'Бюджет: от 0 до 10 USD, не более 6 знаков после точки или запятой.', invalid_call_limit: 'Лимит попыток: целое число от 0 до 100.',
+    invalid_profile_id: 'Идентификатор: латинская буква, затем буквы, цифры, дефис или подчёркивание; до 40 символов.',
+    invalid_model: 'Укажите точный идентификатор модели без пробелов и команд.', invalid_description: 'Описание профиля: от 1 до 400 символов.',
+    duplicate_profile: 'Идентификаторы профилей должны быть уникальными.', invalid_fallback: 'Выберите существующий резервный профиль.',
+    invalid_pi_pair: 'Для Pi укажите provider/model и допустимое усилие.', invalid_codex_pair: 'Для Codex укажите модель без имени провайдера и допустимое усилие.',
+    invalid_cursor_pair: 'Для Cursor нужен точный идентификатор модели; auto не разрешён.'
   }
   set(error, known[code] ?? 'Операция не завершена. Проверьте настройки и доступность Orca; секреты и вывод процессов скрыты.')
 }
-function apply(s: Status): void { set(state, s); set(configText, JSON.stringify(s.config, null, 2)); set(plan, s.lastPlan) }
+function apply(s: Status, reset = !read(dirty)): void {
+  set(state, s); set(plan, s.lastPlan)
+  if (reset) { set(draft, s.config); set(budget, String(s.config.budgetMicrousd / 1e6)); set(calls, String(s.config.maxCalls)); set(selectedProfile, 0); set(dirty, false) }
+}
+function change(update: Partial<Config>): void { set(draft, { ...read(draft), ...update }); set(dirty, true) }
+function editProfile(update: Partial<Profile>): void {
+  const config = read(draft), index = read(selectedProfile), previous = config.profiles[index]!
+  const profiles = config.profiles.map((p, i) => i === index ? { ...p, ...update } : p)
+  change({ profiles, fallback: config.fallback === previous.id && update.id !== undefined ? update.id : config.fallback })
+}
+function addProfile(): void {
+  const config = read(draft); if (config.profiles.length >= 24) return
+  let n = 1; while (config.profiles.some(p => p.id === `profile-${n}`)) n++
+  change({ profiles: [...config.profiles, { id: `profile-${n}`, agent: 'codex', model: '', effort: 'medium', description: '', operatorConfirmed: false }] })
+  set(selectedProfile, config.profiles.length)
+}
+function removeProfile(): void {
+  const config = read(draft); if (config.profiles.length <= 1) return
+  const profiles = config.profiles.filter((_, i) => i !== read(selectedProfile))
+  change({ profiles, fallback: profiles.some(p => p.id === config.fallback) ? config.fallback : profiles[0]!.id }); set(selectedProfile, 0)
+}
 async function refresh(): Promise<void> { try { apply(await plugin.request('fairway.status')) } catch (e) { showError(e) } }
-export function setup(_ctx: PanelContext): void { void refresh() }
+export function setup(ctx: PanelContext): void { ctx.subscriptions.push(settings.onDidChange(() => { void refresh() })); void refresh() }
 async function route(): Promise<void> {
   const id = Array.from({ length: 36 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
   set(activeId, id); set(busy, true); set(error, ''); set(plan, null)
@@ -38,14 +67,48 @@ async function launch(): Promise<void> {
   catch (e) { showError(e) } finally { set(busy, false); set(launching, false) }
 }
 async function save(): Promise<void> {
-  set(error, '')
-  try { apply(await plugin.request('fairway.config', { config: read(configText) })); set(plan, null) } catch (e) { showError(e) }
+  set(error, ''); set(saving, true)
+  try {
+    if (!/^\d+$/.test(read(calls).trim()) || Number(read(calls)) > 100) throw new Error('invalid_call_limit')
+    const config = { ...read(draft), budgetMicrousd: budgetFromText(read(budget)), maxCalls: Number(read(calls)) }
+    const result = await plugin.request('fairway.config', { config: JSON.stringify(config) })
+    set(activeId, null); apply(result, true); set(plan, null)
+  } catch (e) { showError(e) } finally { set(saving, false) }
 }
 async function keySave(): Promise<void> {
   try { await plugin.request('fairway.key', { key: read(apiKey) }); set(apiKey, ''); await refresh() } catch (e) { set(apiKey, ''); showError(e) }
 }
 async function bridge(enabled: boolean): Promise<void> {
   try { await plugin.request('fairway.bridge', { enabled }); await refresh() } catch (e) { showError(e) }
+}
+function settingsForm() {
+  const config = read(draft), profile = config.profiles[read(selectedProfile)] ?? config.profiles[0]!
+  const options = config.profiles.map((p, i) => ({ value: String(i), label: `${p.id || 'Без идентификатора'} · ${p.agent} · ${p.model || 'модель не задана'}` }))
+  const efforts = profile.agent === 'pi' ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] : ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+  return <Stack gap="md">
+    <Card title="Режим и лимиты" description="Эти же параметры доступны в Settings → Plugins → Fairway.">
+      <Stack gap="sm">
+        <Switch label="Разрешить платные запросы JEV" checked={config.live} onChange={live => change({ live })} />
+        <Switch label="Разрешить явный запуск через Orca" checked={config.execution} onChange={execution => change({ execution })} />
+        <Input label="Общий бюджет JEV, USD" value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
+        <Input label="Лимит попыток JEV" value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
+        <Text muted>Подбор не запускает агента. Лимиты накопленные: сохранение не обнуляет учёт расходов.</Text>
+      </Stack>
+    </Card>
+    <Card title="Разрешённые профили" description="До 24 профилей. Доступность пары проверяется отдельно перед запуском.">
+      <Stack gap="sm">
+        <Select label="Редактируемый профиль" value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
+        <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>Добавить профиль</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>Удалить профиль</Button></Row>
+        <Input label="Идентификатор профиля" value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />
+        <Select label="Агент профиля" value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
+        <Input label="Модель профиля" value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : 'Точный идентификатор из каталога агента'} onChange={model => editProfile({ model, operatorConfirmed: false })} />
+        {profile.agent === 'cursor' ? <Text muted>Усилие входит в нативный идентификатор Cursor. Отдельный параметр не передаётся; auto запрещён.</Text> : <Select label="Усилие профиля" value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
+        <Textarea label="Когда выбирать профиль" value={profile.description} maxLength={400} rows={3} placeholder="Класс задач, сложность и условия выбора; без секретов." onChange={description => editProfile({ description })} />
+        {profile.agent === 'pi' ? <Switch label="Я проверил эту пару в Pi" checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>Проверка по метаданным агента обязательна. Ручное подтверждение не обходит её.</Text>}
+        <Select label="Резервный профиль" value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || 'Без идентификатора' }))} onChange={fallback => change({ fallback })} />
+      </Stack>
+    </Card>
+  </Stack>
 }
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy)
@@ -76,9 +139,12 @@ export default function Panel() {
       <Tab value="settings" label="Настройки">
         <Stack gap="md">
           <Text>Изменения применяются только к Fairway. Сохранение отменяет незавершённые решения.</Text>
-          <Textarea label="Настройки JSON" rows={16} value={read(configText)} onChange={v => set(configText, v)} />
-          <Button onPress={save}>Сохранить настройки</Button>
-          <Text muted>live: запросы JEV. execution: кнопка явного запуска. Оба выключены по умолчанию.</Text>
+          {settingsForm()}
+          <Row gap="sm" wrap>
+            <Button disabled={read(saving) || !s || !read(dirty)} onPress={save}>Сохранить настройки</Button>
+            <Button variant="ghost" disabled={read(saving) || !read(dirty)} onPress={async () => { try { apply(await plugin.request('fairway.status'), true); set(error, '') } catch (e) { showError(e) } }}>Отменить изменения</Button>
+          </Row>
+          {read(dirty) ? <Text tone="warning">Есть несохранённые изменения. Штатные настройки Orca применяются сразу; сохранение этой формы заменит их показанными значениями.</Text> : null}
           <Input label="Ключ OpenRouter" type="password" value={read(apiKey)} onChange={v => set(apiKey, v)} placeholder={s?.keyPresent ? 'Ключ сохранён в Orca' : 'Не задан'} />
           <Row gap="sm" wrap><Button onPress={keySave}>Сохранить ключ</Button><Button variant="ghost" onPress={async () => { set(apiKey, ''); await keySave() }}>Удалить ключ</Button></Row>
           <Text muted>Ключ хранится в защищённом хранилище Orca. Файлы .env и ключи агентов не читаются.</Text>
