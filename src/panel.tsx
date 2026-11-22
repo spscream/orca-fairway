@@ -1,3 +1,5 @@
+import { t } from './ui-i18n.ts'
+import type { Message } from './core/i18n.ts'
 import { atom, Badge, Button, Callout, Card, Code, Heading, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
@@ -9,11 +11,11 @@ const launching = atom(false)
 const task = atom(''), agent = atom<Agent>('codex'), plan = atom<Plan | null>(null)
 const journal = atom('[]')
 const draft = atom<Config>(DEFAULT_CONFIG), budget = atom('0.1'), calls = atom('5'), selectedProfile = atom(0), dirty = atom(false), saving = atom(false)
-const apiKey = atom(''), busy = atom(false), error = atom(''), activeId = atom<string | null>(null)
+const apiKey = atom(''), busy = atom(false), error = atom<Message | ''>(''), activeId = atom<string | null>(null)
 const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
   const code = e instanceof Error ? e.message : ''
-  const known: Record<string, string> = {
+  const known: Record<string, Message> = {
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
     plan_not_launchable: 'The decision was cancelled, expired, or already used.', plan_already_consumed: 'This decision cannot be dispatched again.',
@@ -92,89 +94,89 @@ async function bridge(enabled: boolean): Promise<void> {
 }
 function settingsForm() {
   const config = read(draft), profile = config.profiles[read(selectedProfile)] ?? config.profiles[0]!
-  const options = config.profiles.map((p, i) => ({ value: String(i), label: `${p.id || 'No ID'} · ${p.agent} · ${p.model || 'model not set'}` }))
-  const efforts = profile.agent === 'pi' ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] : ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+  const options = config.profiles.map((p, i) => ({ value: String(i), label: `${p.id || t("No ID")} · ${p.agent} · ${p.model || t("model not set")}` }))
+  const efforts = profile.agent === 'pi' ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] : [t("none"), 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
   return <Stack gap="md">
-    <Card title="Mode and limits" description="These settings are also available in Settings → Plugins → Fairway.">
+    <Card title={t("Mode and limits")} description={t("These settings are also available in Settings → Plugins → Fairway.")}>
       <Stack gap="sm">
-        <Switch label="Allow paid JEV requests" checked={config.live} onChange={live => change({ live })} />
-        <Switch label="Allow explicit execution through Orca" checked={config.execution} onChange={execution => change({ execution })} />
-        <Input label="Total JEV budget, USD" value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
-        <Input label="JEV attempt limit" value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
-        <Text muted>Selecting a profile never starts an agent. Limits are cumulative; saving does not reset accounting.</Text>
+        <Switch label={t("Allow paid JEV requests")} checked={config.live} onChange={live => change({ live })} />
+        <Switch label={t("Allow explicit execution through Orca")} checked={config.execution} onChange={execution => change({ execution })} />
+        <Input label={t("Total JEV budget, USD")} value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
+        <Input label={t("JEV attempt limit")} value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
+        <Text muted>{t("Selecting a profile never starts an agent. Limits are cumulative; saving does not reset accounting.")}</Text>
       </Stack>
     </Card>
-    <Card title="Allowed profiles" description="Up to 24 profiles. Pair availability is verified separately before dispatch.">
+    <Card title={t("Allowed profiles")} description={t("Up to 24 profiles. Pair availability is verified separately before dispatch.")}>
       <Stack gap="sm">
-        <Select label="Profile to edit" value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
-        <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>Add profile</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>Delete profile</Button></Row>
-        <Input label="Profile ID" value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />
-        <Select label="Profile agent" value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
-        <Input label="Profile model" value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : 'Exact ID from the agent catalog'} onChange={model => editProfile({ model, operatorConfirmed: false })} />
-        {profile.agent === 'cursor' ? <Text muted>Cursor effort is encoded in its native model ID. No separate effort flag is sent; auto is not allowed.</Text> : <Select label="Profile effort" value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
-        <Textarea label="When to choose this profile" value={profile.description} maxLength={400} rows={3} placeholder="Task class, complexity, and selection criteria; no secrets." onChange={description => editProfile({ description })} />
-        {profile.agent === 'pi' ? <Switch label="I verified this pair in Pi" checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>Agent metadata verification is required. Manual confirmation cannot bypass it.</Text>}
-        <Select label="Fallback profile" value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || 'No ID' }))} onChange={fallback => change({ fallback })} />
+        <Select label={t("Profile to edit")} value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
+        <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>{t("Add profile")}</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>{t("Delete profile")}</Button></Row>
+        <Input label={t("Profile ID")} value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />
+        <Select label={t("Profile agent")} value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
+        <Input label={t("Profile model")} value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : t("Exact ID from the agent catalog")} onChange={model => editProfile({ model, operatorConfirmed: false })} />
+        {profile.agent === 'cursor' ? <Text muted>{t("Cursor effort is encoded in its native model ID. No separate effort flag is sent; auto is not allowed.")}</Text> : <Select label={t("Profile effort")} value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
+        <Textarea label={t("When to choose this profile")} value={profile.description} maxLength={400} rows={3} placeholder={t("Task class, complexity, and selection criteria; no secrets.")} onChange={description => editProfile({ description })} />
+        {profile.agent === 'pi' ? <Switch label={t("I verified this pair in Pi")} checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>{t("Agent metadata verification is required. Manual confirmation cannot bypass it.")}</Text>}
+        <Select label={t("Fallback profile")} value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || t("No ID") }))} onChange={fallback => change({ fallback })} />
       </Stack>
     </Card>
   </Stack>
 }
 export default function Panel() {
-  const s = read(state), p = read(plan), waiting = read(busy)
+  const s = read(state), p = read(plan), waiting = read(busy), errorMessage = read(error)
   return <Stack gap="md">
-    <Row justify="between"><Heading>Fairway</Heading><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? 'Explicit execution' : 'Shadow mode'}</Badge></Row>
-    <Text muted>Task → model and effort → native Orca dispatch.</Text>
-    {read(error) ? <Callout tone="danger" title="Operation stopped"><Text>{read(error)}</Text></Callout> : null}
-    <Tabs label="Section" value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>
-      <Tab value="workflow" label="Workflow">{workflowPanel(s, w => {
+    <Row justify="between"><Heading>Fairway</Heading><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
+    <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
+    {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
+    <Tabs label={t("Section")} value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>
+      <Tab value="workflow" label={t("Workflow")}>{workflowPanel(s, w => {
         set(error, '')
         const current = read(state); if (current) set(state, { ...current, workflow: w })
         void plugin.request('fairway.status').then(next => set(state, next)).catch(showError)
       }, showError)}</Tab>
-      <Tab value="task" label="Task">
+      <Tab value="task" label={t("Task")}>
         <Stack gap="md">
-          <Callout tone="neutral" title={s?.config.live ? 'JEV enabled' : 'Offline'}><Text>{s?.config.live ? 'JEV receives only the entered description and allowed profile cards.' : 'Uses the fallback profile. No paid requests.'}</Text></Callout>
-          {!s?.workspace ? <Text tone="warning">Open a local Orca workspace.</Text> : null}
-          <Select label="Agent" disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
-          <Textarea label="Task description" disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder="A short task description without secrets or source code" onChange={v => { void cancel(); set(task, v) }} />
-          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !read(task).trim() || !s?.workspace} onPress={route}>Select profile</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>Cancel selection</Button></Row>
-          {waiting ? <Spinner label="Working" /> : null}
-          {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? 'effort encoded in the Cursor ID'}`}>
+          <Callout tone="neutral" title={s?.config.live ? t("JEV enabled") : t("Offline")}><Text>{s?.config.live ? t("JEV receives only the entered description and allowed profile cards.") : t("Uses the fallback profile. No paid requests.")}</Text></Callout>
+          {!s?.workspace ? <Text tone="warning">{t("Open a local Orca workspace.")}</Text> : null}
+          <Select label={t("Agent")} disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
+          <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
+          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !read(task).trim() || !s?.workspace} onPress={route}>{t("Select profile")}</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>{t("Cancel selection")}</Button></Row>
+          {waiting ? <Spinner label={t("Working")} /> : null}
+          {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? t("effort encoded in the Cursor ID")}`}>
             <Stack gap="sm">
-              <KeyValue items={[{ label: 'Reason', value: p.reason }, { label: 'Verification', value: p.evidence.source }, { label: 'Confidence', value: p.confidence === null ? '—' : p.confidence.toFixed(2) }, { label: 'State', value: p.state }]} />
-              {!p.evidence.verified ? <Text tone="warning">Dispatch blocked: verify the exact pair using agent metadata.</Text> : null}
-              <Button icon="play" disabled={waiting || !s?.config.execution || !p.evidence.verified || p.state !== 'shadow'} onPress={launch}>Launch through Orca</Button>
-              {p.state === 'submitted' ? <Text tone="success">Orca accepted the dispatch. The model that actually responds is not yet verified.</Text> : null}
-              {p.state === 'dispatch_unknown' ? <Text tone="warning">The dispatch outcome is unknown. Inspect Orca before starting anything again.</Text> : null}
+              <KeyValue items={[{ label: t("Reason"), value: p.reason }, { label: t("Verification"), value: p.evidence.source }, { label: t("Confidence"), value: p.confidence === null ? '—' : p.confidence.toFixed(2) }, { label: t("State"), value: p.state }]} />
+              {!p.evidence.verified ? <Text tone="warning">{t("Dispatch blocked: verify the exact pair using agent metadata.")}</Text> : null}
+              <Button icon="play" disabled={waiting || !s?.config.execution || !p.evidence.verified || p.state !== 'shadow'} onPress={launch}>{t("Launch through Orca")}</Button>
+              {p.state === 'submitted' ? <Text tone="success">{t("Orca accepted the dispatch. The model that actually responds is not yet verified.")}</Text> : null}
+              {p.state === 'dispatch_unknown' ? <Text tone="warning">{t("The dispatch outcome is unknown. Inspect Orca before starting anything again.")}</Text> : null}
             </Stack>
           </Card> : null}
         </Stack>
       </Tab>
-      <Tab value="settings" label="Settings">
+      <Tab value="settings" label={t("Settings")}>
         <Stack gap="md">
-          <Text>Changes apply only to Fairway. Saving cancels pending decisions.</Text>
+          <Text>{t("Changes apply only to Fairway. Saving cancels pending decisions.")}</Text>
           {settingsForm()}
           <Row gap="sm" wrap>
-            <Button disabled={read(saving) || !s || !read(dirty)} onPress={save}>Save settings</Button>
-            <Button variant="ghost" disabled={read(saving) || !read(dirty)} onPress={async () => { try { apply(await plugin.request('fairway.status'), true); set(error, '') } catch (e) { showError(e) } }}>Discard changes</Button>
+            <Button disabled={read(saving) || !s || !read(dirty)} onPress={save}>{t("Save settings")}</Button>
+            <Button variant="ghost" disabled={read(saving) || !read(dirty)} onPress={async () => { try { apply(await plugin.request('fairway.status'), true); set(error, '') } catch (e) { showError(e) } }}>{t("Discard changes")}</Button>
           </Row>
-          {read(dirty) ? <Text tone="warning">You have unsaved changes. Native Orca settings apply immediately; saving this form replaces them with the displayed values.</Text> : null}
-          <Input label="OpenRouter key" type="password" value={read(apiKey)} onChange={v => set(apiKey, v)} placeholder={s?.keyPresent ? 'Key saved in Orca' : 'Not set'} />
-          <Row gap="sm" wrap><Button onPress={keySave}>Save key</Button><Button variant="ghost" onPress={async () => { set(apiKey, ''); await keySave() }}>Delete key</Button></Row>
-          <Text muted>The key stays in Orca secret storage. No .env files or agent credentials are read.</Text>
+          {read(dirty) ? <Text tone="warning">{t("You have unsaved changes. Native Orca settings apply immediately; saving this form replaces them with the displayed values.")}</Text> : null}
+          <Input label={t("OpenRouter key")} type="password" value={read(apiKey)} onChange={v => set(apiKey, v)} placeholder={s?.keyPresent ? t("Key saved in Orca") : t("Not set")} />
+          <Row gap="sm" wrap><Button onPress={keySave}>{t("Save key")}</Button><Button variant="ghost" onPress={async () => { set(apiKey, ''); await keySave() }}>{t("Delete key")}</Button></Row>
+          <Text muted>{t("The key stays in Orca secret storage. No .env files or agent credentials are read.")}</Text>
         </Stack>
       </Tab>
       <Tab value="pi" label="Pi Auto">
         <Stack gap="md">
-          <Text>The optional Pi extension requests decisions only. Pi retains model execution and authentication.</Text>
-          <Switch label="Local Pi decision service" checked={!!s?.bridgePath} onChange={v => { void bridge(v) }} />
+          <Text>{t("The optional Pi extension requests decisions only. Pi retains model execution and authentication.")}</Text>
+          <Switch label={t("Local Pi decision service")} checked={!!s?.bridgePath} onChange={v => { void bridge(v) }} />
           {s?.bridgePath ? <Code block>{s.bridgePath}</Code> : null}
-          <Text muted>See docs/pi.md for setup and pair verification. This is not a generation proxy or a switch for the native Orca model list.</Text>
+          <Text muted>{t("See docs/pi.md for setup and pair verification. This is not a generation proxy or a switch for the native Orca model list.")}</Text>
         </Stack>
       </Tab>
-      <Tab value="history" label="Audit log"><Stack gap="sm"><Text muted>Last 20 events. Task text, keys, and API responses are never recorded here.</Text><Code block>{read(journal)}</Code></Stack></Tab>
+      <Tab value="history" label={t("Audit log")}><Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text><Code block>{read(journal)}</Code></Stack></Tab>
     </Tabs>
-    <Text muted size="xs">JEV attempts: {s?.ledger.calls ?? 0}. Reserved: ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
-    <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>Refresh status</Button>
+    <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? 0}. {t('Reserved:')} ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
+    <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
   </Stack>
 }

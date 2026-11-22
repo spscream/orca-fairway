@@ -1,8 +1,10 @@
-# Fairway for Orca — verification report 0.3.1
+# Fairway for Orca — verification report 0.4.0
 
-This release makes the plugin interface and public documentation English. It translates panel labels, native Orca setting titles/descriptions, fixed error messages, status output, UI test locators, and synthetic check fixtures. It does not change protocol identifiers, configuration keys, persisted user content, permissions, decision policy, accounting, or dispatch behavior. Existing tasks and user-written profile descriptions retain their original language.
+The panel now follows the host application's UI language through `env.locale`. All 11 built-in locales observed in Orca 1.4.265 are included: `en`, `de`, `es`, `fr`, `ja`, `ko`, `pt`, `ru`, `tr`, `zh`, and `zh-Hant`. Each contains all 143 panel messages. Locale discovery used shipped resource filenames and the version-matched API, without reading user settings, credentials, or other work repositories.
 
-## Verification commands
+There is no separate language preference, runtime translation API, or additional dependency. Regional tags resolve to the supported base language; explicit Chinese script overrides region, and Taiwan/Hong Kong/Macao select Traditional Chinese when no script is given. Unknown community language packs fall back to English.
+
+## Results and exact commands
 
 ```sh
 npm ci --ignore-scripts
@@ -17,44 +19,50 @@ npm run audit:public
 git diff --check
 ```
 
-Environment: Node.js 22.23.2, Orca 1.4.265, Plugin Host API 1.10. Orca content checks use the audited `.orca/plugin` snapshot, excluding local research and development dependencies. A clean committed release copy is also validated before tagging.
+- Standalone tests: **42/42**.
+- Tests through Orca, including panel and worker: **55/55**.
+- Panel check: **9 scenarios**, no issues or warnings.
+- Both type checks, manifest validation, public-surface audit, and whitespace checks pass.
+- Every catalog has the same typed keys, nonempty translations, and unchanged numeric limits.
+- Panel tests mount all 11 host locales, exercise localized settings and errors, open workflow controls, preserve user-written descriptions, and verify no accidental selection or dispatch requests.
 
-Results: **40/40** standalone tests and **52/52** tests through Orca, including UI/worker coverage. Both type checks, manifest validation, public-surface audit, and whitespace checks passed. Nine panel scenarios cover empty/ready state, unverified selection, settings, Pi, workflow preparation, questions, a selected step, and an uncertain dispatch. All nine scenarios passed without issues or warnings.
+Environment: Node.js 22.23.2, Orca 1.4.265, Plugin Host API 1.10. Checks stage only the audited public surface in `.orca/plugin`. A clean committed release copy is validated before tagging.
 
-## English interface verification
+## Visual verification
 
-Task, Settings, and Workflow panels were inspected in the current dark theme at 502×959. Captures reported `settled: true`, `errors: []`, and `pendingRequests: 0`. Screenshots in `assets/` were refreshed without editing image content. Settings and Workflow previews changed only the initial tab and its state key in a separate staged copy; no user input actions, agent dispatches, or paid requests were used. The temporary development plugin was unloaded afterward and the original public surface restaged for final checks. Light theme and the native Settings page were not separately inspected.
+Russian, German, and Traditional Chinese Settings previews are inspected in the current dark theme at 502×959. All three captures reported `settled: true`, `errors: []`, and `pendingRequests: 0`. The staged preview changes only the initial tab/state key and the locale passed to the translation helper. Global Orca language preferences and installed plugin source are not changed. After review, the temporary plugin is unloaded and the original source is restaged for final checks.
 
-A Unicode scan of plugin source, check fixtures, manifest, and public Markdown found no remaining Cyrillic text. This is a check of shipped text, not a restriction on user content. No automatic translation or migration of user-authored tasks, profiles, or analysis was introduced.
+Screenshots: `assets/settings-ru-dark.png`, `assets/settings-de-dark.png`, and `assets/settings-zh-Hant-dark.png`. Existing English screenshots remain valid examples of the English locale. Other locale layouts are exercised in panel tests; light theme, every language's glyph rendering, and live changes to the application's global language were not separately inspected. Initial translations have not received independent native-speaker review.
 
-## Coverage
+## Host limitations and preserved behavior
 
-Tests use synthetic tasks and mocked network/dispatch only. They cover offline/shadow defaults, missing key, invalid/injected choices, timeout, exhausted/corrupt budget, concurrent reservations, cancellation, stale configuration, workspace/task binding, metadata verification, safe argv, secret-free audit, duplicate dispatch, and lost receipts.
+The version-matched manifest API accepts plain strings for native Settings labels and command titles. It has no documented locale map or dynamic label method. Worker commands have no documented UI-locale field. Those static labels and status output remain English; the panel, including its complete Settings form and human-readable errors, is localized. No application language pack or manifest rewriting is used as a workaround.
 
-Additional coverage includes private Pi connection files and loopback authentication, explicit Pi briefs and pinned model pairs, shared native settings and migration without budget reset, profile editing, and execution disabled during verification.
+User tasks, profile descriptions, analysis, reviews, identifiers, effort values, references, audit records, and diagnostic codes are not translated or migrated. Routing, permissions, budget accounting, execution defaults, and settings keys are unchanged. Error state stores source message keys, allowing render-time translation using the host locale.
 
-Workflow tests cover preparation without execution, fixed coordinator profiles without JEV, strict analysis schema and duplicate keys, cycles/unknown dependencies, prohibited model fields, unresolved questions, unavailable/missing references, cross-agent selection, routing-brief-only JEV input, reviewed dependencies, concurrent dispatch, restart state, immutable approval, cancellation, shared accounting, symlink refusal, and bounded artifacts. A failure before persisted dispatch intent permits fresh selection; an uncertain actual launch never permits a blind retry.
+The current check-scenario API does not expose a locale option. All-language verification uses the documented `mount(..., { locale })` test API, separate from the nine check scenarios.
 
-## Live requests, costs, and blockers
+## Live requests and security boundaries
 
-Paid JEV requests during plugin development and tests: **0**. Cost: **$0**. No real coordinators, executors, extra AI agents, or Orca agent workers were launched. Existing credentials, secret files, and other work repositories were not read. Only the presence of `OPENROUTER_API_KEY` in the current environment was checked; it was absent. Live JEV testing remains blocked by the missing environment key.
+Paid JEV requests during implementation and tests: **0**. Cost: **$0**. No real coordinators, executors, extra AI agents, or Orca agent workers were launched. No secret files or existing working source code were sent externally. Only the presence of `OPENROUTER_API_KEY` was checked in this session; it was absent, so live JEV testing remains blocked. Translation uses bundled static data only.
 
-Live coordinator creation of `analysis.json` and real end-to-end subtask execution remain unverified. Agents provide analysis using their own tools and permissions. Source reading is reported by the coordinator, not proven by metadata. Results are accepted by the operator. Internal subagents are not intercepted, and verified catalog entries do not establish entitlement, quota, or the actual responding model.
+Existing synthetic coverage still checks invalid choices, injection, timeout, missing key, budget exhaustion/corruption, concurrent reservations, cancellation, task/workspace/configuration binding, metadata verification, safe argv, secret-free audit, and duplicate/uncertain dispatch.
 
-## Data and release boundaries
+Workflow coverage includes structured analysis, source/question gates, dependency review, cross-agent routing, routing-brief-only JEV input, immutable approval, restart state, bounded private artifacts, and refusal of symbolic links. Pi coverage includes private loopback capabilities, explicit briefs, and pinned physical pairs.
 
-Only new integration source, synthetic tests, documentation, screenshots, and build/CI settings are published. Private research, transcripts, connection files, logs, and previous experimental results are excluded. `scripts/audit-public.mjs` checks public paths, symlinks, sizes, common key patterns, and personal absolute paths without printing matched content.
+Live coordinator artifact creation and real end-to-end execution remain unverified. Source reading is reported by the coordinator, not proven by metadata. Results require operator review; internal subagents are not intercepted. Artifact cleanup, a global workspace lock, isolated worktrees, and autonomous graph execution are not implemented. Verified catalogs do not establish account entitlement, quota, or the actual responding model.
 
-Workflow task text, analysis, instructions, and short accepted results are local working data, separate from metadata-only audit. Artifacts have no automatic deletion. Execution is sequential within a workflow, with no global folder lock, isolated worktrees, or autonomous graph scheduling. Closing a workflow does not stop a running agent.
+## Public data and history
 
-## Previous releases
+Only new integration code, synthetic tests, documentation, screenshots, and build/CI configuration are published. Private research, transcripts, logs, connection files, and old experimental results remain excluded. The audit checks public paths, symlinks, sizes, common key patterns, and personal absolute paths without printing matched contents.
 
 | Release | Verification and scope |
 | --- | --- |
-| 0.3.0 | 40/40 standalone tests, 52/52 through Orca, 9 scenarios; analyzed workflows and per-step routing; dark workflow screenshot inspected |
-| 0.2.0 | 26/26 standalone tests, 36/36 through Orca, 5 scenarios; native settings, profile form, migration, dark settings screenshot |
-| 0.1.0 | 26/26 standalone tests, 30/30 through Orca, 5 scenarios; direct routing, adapters, Pi extension, dark task screenshot |
+| 0.3.1 | 40 standalone / 52 Orca tests, 9 scenarios; English UI and documentation, refreshed screenshots |
+| 0.3.0 | 40 standalone / 52 Orca tests, 9 scenarios; coordinator workflows and per-step routing |
+| 0.2.0 | 26 standalone / 36 Orca tests, 5 scenarios; native settings and profile form |
+| 0.1.0 | 26 standalone / 30 Orca tests, 5 scenarios; direct routing, native adapters, Pi extension |
 
-All previous plugin releases also used synthetic checks with no paid JEV calls or real agent execution. Historical details remain in Git history.
+Previous plugin releases also used synthetic checks with no paid JEV calls or real agent execution. Historical details remain in Git history.
 
-Usage: [README](README.md), [workflows](docs/workflows.md), [Pi](docs/pi.md). Further development: [roadmap](docs/roadmap.md).
+Usage: [README](README.md), [localization](docs/localization.md), [workflows](docs/workflows.md), [Pi](docs/pi.md). Next steps: [roadmap](docs/roadmap.md).

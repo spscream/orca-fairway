@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Panel language automatically follows Orca `env.locale`, without an override setting.
+- Complete 143-message catalogs for all 11 built-in Orca locales.
+- Regional language matching, Chinese script/region handling, and English fallback for unknown language packs.
+- Coverage tests for every catalog, preserved numeric limits, localized forms/errors, and unchanged user-authored data.
+- Native manifest labels and worker status output remain English under the current host API.
+
 ## 0.3.1
 
 - English interface, native Orca settings, validation messages, and status command.

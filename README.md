@@ -11,12 +11,20 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.3.1 --json
+orca plugin install spscream/orca-fairway@v0.4.0 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
 
 Access: a trusted Node worker running as your user, own storage and secrets, own Orca settings, workspace metadata, and agent dispatch. The worker invokes the Orca CLI; it is not a sandbox for untrusted code.
+
+## Interface language
+
+The panel follows Orca's UI locale through `env.locale`; there is no separate language setting. All 11 built-in locales in Orca 1.4.265 have complete UI catalogs: English (`en`), German (`de`), Spanish (`es`), French (`fr`), Japanese (`ja`), Korean (`ko`), Portuguese (`pt`), Russian (`ru`), Turkish (`tr`), Simplified Chinese (`zh`), and Traditional Chinese (`zh-Hant`).
+
+Regional tags use their base language; `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese, while explicit `Hans`/`Hant` script tags take precedence. Unknown community language packs fall back to English. User-written tasks, analysis, profile descriptions, model IDs, effort values, and diagnostic codes are never translated or migrated.
+
+Orca's current manifest API accepts only static strings for native Settings labels and command titles; those and the worker status command remain English. All controls and help inside the Fairway panel, including its Settings tab, follow the app locale. Public documentation remains English. Details and extension guidance: [localization](docs/localization.md).
 
 ## First task
 
@@ -112,6 +120,6 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 ## Release status
 
-0.3.1 makes the interface and documentation English without changing settings keys, persisted data, protocols, or routing behavior. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
+0.4.0 adds automatic panel localization for all 11 built-in Orca locales without changing settings keys, persisted user content, protocols, or routing behavior. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
 Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.

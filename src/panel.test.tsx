@@ -3,6 +3,7 @@ import * as panel from './panel.tsx'
 import { DEFAULT_CONFIG, validateConfig } from './core/config.ts'
 import type { Plan } from './core/types.ts'
 import type { Status } from './protocol.ts'
+import { locales, translate } from './core/i18n.ts'
 const example: Plan = { id: 'a'.repeat(36), profile: DEFAULT_CONFIG.profiles[0]!, reason: 'offline', confidence: null, createdAt: 1, expiresAt: 9999999999999, configHash: '', taskHash: '', workspaceHash: '', evidence: { verified: true, source: 'synthetic_metadata' }, costUsd: null, reservedMicrousd: 0, state: 'shadow', observedModel: null, observedEffort: null }
 function status(execution = false): Status { return { config: { ...DEFAULT_CONFIG, execution }, ledger: { calls: 0, reservedMicrousd: 0 }, keyPresent: false, workspace: 'synthetic', lastPlan: null, bridgePath: null, workflow: null } }
 test('panel defaults to shadow and picking a profile never launches', async () => {
@@ -104,4 +105,30 @@ test('workflow preparation never launches a coordinator automatically', async ()
   assert.equal(prepares, 1); assert.equal(actions, 0)
   assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, true)
   assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
+})
+test('all host locales translate settings and workflow controls without changing user data or executing', async () => {
+  for (const locale of locales) {
+    let requests = 0
+    const config = structuredClone(DEFAULT_CONFIG)
+    config.profiles[0]!.description = 'USER-AUTHORED-MARKER'
+    const host = mockHost({ requests: {
+      'fairway.status': () => ({ ...status(), config }),
+      'fairway.plan': () => { requests++; return example },
+      'fairway.workflow.create': () => { requests++; throw new Error('not expected') }
+    } })
+    const tr = (message: Parameters<typeof translate>[1]) => translate(locale, message)
+    const view = await mount(panel, { host, locale })
+    await view.select({ label: tr('Section') }, 'settings')
+    assert.equal(view.valueOf({ label: tr('When to choose this profile') }), 'USER-AUTHORED-MARKER')
+    assert.ok(view.find({ text: tr('Save settings') }))
+    await view.type({ label: tr('Total JEV budget, USD') }, '11', { replace: true })
+    await view.press({ text: tr('Save settings') })
+    assert.ok(view.find({ text: tr('Budget: 0–10 USD, with up to 6 decimal places.') }))
+    await view.select({ label: tr('Section') }, 'workflow')
+    assert.ok(view.find({ label: tr('Coordinator task') }))
+    assert.equal(view.find({ text: tr('Prepare analysis') })?.props.disabled, true)
+    assert.equal(requests, 0, locale)
+    assert.deepEqual(view.errors, [], locale); assert.deepEqual(view.refusals, [], locale)
+    await view.unmount()
+  }
 })
