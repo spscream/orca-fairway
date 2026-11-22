@@ -1,4 +1,4 @@
-import { parseJson } from './json.ts'
+import { requestJson, type JsonRequest } from './http.ts'
 import { record, requireThat, RouterError } from './config.ts'
 import type { Profile, Transport } from './types.ts'
 export const DECISION_MODEL = 'typesafe/jev-1.14'
@@ -38,20 +38,12 @@ export function validateAnswer(data: unknown, profiles: Profile[]): { profile: P
   requireThat(finite(data.usage.cost, 0, RESERVATION_MICROUSD / 1e6), 'invalid_cost')
   return { profile: p, confidence: a.confidence, cost: data.usage.cost }
 }
-export const httpTransport: Transport = async (url, { body, key, signal }) => {
-  requireThat(url === METADATA_URL || url === DECISIONS_URL, 'endpoint_refused')
-  const response = await fetch(url, { method: body ? 'POST' : 'GET', body, signal, redirect: 'error', headers: {
-    'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {})
-  } })
-  if (!response.ok) { await response.body?.cancel(); throw new RouterError('http_error') }
-  requireThat(response.body, 'empty_response')
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []; let length = 0
-  try {
-    for (;;) {
-      const { done, value } = await reader.read(); if (done) break
-      length += value.byteLength; requireThat(length <= 65_536, 'response_too_large'); chunks.push(value)
-    }
-    return parseJson(Buffer.concat(chunks).toString('utf8'))
-  } catch (e) { await reader.cancel().catch(() => {}); throw e }
+export function createHttpTransport(http: JsonRequest = requestJson): Transport {
+  return async (url, { body, key, signal }) => {
+    requireThat(url === METADATA_URL || url === DECISIONS_URL, 'endpoint_refused')
+    const response = await http(url, { body, key: key ?? undefined, signal, maxBytes: 65536 })
+    if (response.status !== 200) throw new RouterError('http_error')
+    return response.value
+  }
 }
+export const httpTransport = createHttpTransport()

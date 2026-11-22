@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- Fix OpenRouter connection timeouts on hosts with broken IPv6 routing by using a dedicated IPv4 HTTPS transport for balance and JEV.
+- Preserve TLS certificate verification, fixed endpoint/method allowlists, response limits, cancellation and hard deadlines; never follow redirects or retry requests.
+- Add synthetic transport coverage and verify authenticated read-only balance access inside the Orca plugin host.
+
 ## 0.5.1
 
 - Verify Codex pairs against `codex debug models --bundled` from the available binary, with no network refresh or agent launch.

@@ -1,4 +1,36 @@
-# Fairway for Orca — verification report 0.5.1
+# Fairway for Orca — verification report 0.5.2
+
+Resolved the reported balance timeout. Anonymous diagnostics isolated the network problem: curl and Node HTTPS with `family: 4` reached OpenRouter and received the expected HTTP 401, while Node fetch timed out and explicit IPv6 failed. Fairway now uses a dedicated built-in HTTPS transport with IPv4 selected per request. It does not modify global Node, DNS, proxy, or operating-system settings. The same transport is used for balance, JEV pricing metadata and decision requests.
+
+The transport permits only four exact OpenRouter URLs and their expected GET/POST methods. It preserves certificate verification, forbids redirects, has no retries, rejects header injection, bounds request and response sizes, and destroys stalled or oversized responses. Caller cancellation and a hard 10-second maximum cover connection and body consumption; balance retains its shorter 8-second deadline and 16 KiB limit. JEV retains its 64 KiB response limit and conservative cost reservation. Raw error text and failed response bodies are discarded. The change adds no dependencies, permissions, or UI messages.
+
+## Results and commands
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+npm run test:orca
+npm run check:orca
+npm run validate
+npm run audit:public
+git diff --check
+```
+
+Results: **66/66** standalone tests, **83/83** through Orca, **12** panel scenarios without issues or warnings. Type checks, manifest validation and source audit pass. New synthetic tests cover IPv4/TLS options, endpoint and method restrictions, injected headers, redirects, discarded error bodies, oversized and duplicate JSON, cancellation before send, stalled connections, truncated responses, and no retry of a decision POST. Existing budget, fallback, injection, timeout and no-accidental-execution coverage remains green.
+
+A temporary development worker verified the repaired transport in the actual Orca host. An authenticated read-only balance refresh returned `available` for both account funds and key limit. The credential was accessed only by the plugin’s own secret API; its value and monetary amounts were not printed or written to diagnostic logs. The temporary worker was unloaded, and final restaging removes its private diagnostic handler. The installed stable plugin is updated without resetting settings, keys or workflows.
+
+## Requests, cost and limits
+
+Paid JEV/model requests: **0**. Cost: **$0**. The authenticated live check made exactly two read-only GETs, to `/api/v1/credits` and `/api/v1/key`. Network diagnostics also made eight anonymous request/connection attempts: five reached the key endpoint with HTTP 401 and three failed during connection. No tasks, prompts or source code were sent. No secret files, other working repositories, real coordinators, executors or extra AI workers were accessed or launched.
+
+Balance retrieval is now verified in this host; paid routing and real end-to-end agent execution remain untested. A normal key succeeded here; account-query access can still depend on key permissions. This transport requires direct IPv4 HTTPS connectivity. IPv6-only and proxy-only networks need a future transport option; the current change does not discover or read proxy credentials.
+
+Usage: open Fairway and click **Refresh balance** after updating to **0.5.2**. Account funds, key limit and the local Fairway budget remain distinct. Failed results never become fabricated zero funds, and no balance is persisted or included in the routing audit.
+
+## Previous release: 0.5.1
+
 
 Resolved the shared-cache conflict without rewriting Codex files. The installed CLI documents `codex debug models --bundled` as skipping refresh and dumping only the catalog shipped with that binary. Fairway now prefers this offline metadata command. Metadata-only checks in both the coordinator shell and the actual Orca plugin worker verified the synthetic `gpt-6.1-sol` / `medium` pair with source `codex_bundled_catalog`. No prompt, task, network request or agent session is used. The command’s help and catalog were read locally; no external code or secret files were accessed.
 

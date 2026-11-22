@@ -1,5 +1,5 @@
 import { record, requireThat, RouterError } from './config.ts'
-import { parseJson } from './json.ts'
+import { requestJson, type JsonRequest } from './http.ts'
 export const CREDITS_URL = 'https://openrouter.ai/api/v1/credits'
 export const KEY_URL = 'https://openrouter.ai/api/v1/key'
 export type BalanceState = 'available' | 'unlimited' | 'restricted' | 'unavailable' | 'missing_key' | 'invalid_key' | 'timeout'
@@ -30,17 +30,13 @@ export function keyBalance(value: unknown): BalanceItem {
   requireThat(money(d.limit) && d.limit >= 0 && money(d.limit_remaining) && d.limit_remaining <= d.limit, 'invalid_balance')
   return { state: 'available', remainingUsd: d.limit_remaining }
 }
-export const balanceTransport: BalanceTransport = async (url, key, signal) => {
-  requireThat(url === CREDITS_URL || url === KEY_URL, 'endpoint_refused')
-  const response = await fetch(url, { method: 'GET', signal, redirect: 'error', cache: 'no-store', headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' } })
-  if (!response.ok) { await response.body?.cancel(); return { status: response.status } }
-  requireThat(response.body, 'empty_response')
-  const reader = response.body.getReader(), chunks: Uint8Array[] = []; let size = 0
-  try {
-    for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.byteLength; requireThat(size <= 16384, 'response_too_large'); chunks.push(value) }
-    return { status: response.status, value: parseJson(Buffer.concat(chunks).toString('utf8')) }
-  } catch (error) { await reader.cancel().catch(() => {}); throw error }
+export function createBalanceTransport(http: JsonRequest = requestJson): BalanceTransport {
+  return async (url, key, signal) => {
+    requireThat(url === CREDITS_URL || url === KEY_URL, 'endpoint_refused')
+    return http(url, { key, signal, maxBytes: 16384 })
+  }
 }
+export const balanceTransport = createBalanceTransport()
 export class Balances {
   private snapshot: BalanceSnapshot | null = null
   private pending: Promise<BalanceSnapshot> | null = null
@@ -72,7 +68,7 @@ export class Balances {
           return parse(response.value)
         } catch (error) {
           const cause = record(error) && record(error.cause) ? error.cause.code : null
-          return empty((signal.aborted && signal.reason?.name === 'TimeoutError') || cause === 'ETIMEDOUT' || cause === 'UND_ERR_CONNECT_TIMEOUT' ? 'timeout' : 'unavailable')
+          return empty((signal.aborted && signal.reason?.name === 'TimeoutError') || cause === 'ETIMEDOUT' || cause === 'UND_ERR_CONNECT_TIMEOUT' || (error instanceof RouterError && error.code === 'request_timeout') ? 'timeout' : 'unavailable')
         }
       }
       const [account, keyLimit] = key ? await Promise.all([read(CREDITS_URL, accountBalance), read(KEY_URL, keyBalance)]) : [empty('missing_key'), empty('missing_key')]

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { accountBalance, keyBalance, Balances, balanceTransport, CREDITS_URL, KEY_URL, type BalanceTransport } from '../src/core/balance.ts'
+import { accountBalance, keyBalance, Balances, createBalanceTransport, CREDITS_URL, KEY_URL, type BalanceTransport } from '../src/core/balance.ts'
 test('account funds and key limits are separate; null limit never means unlimited account funds', () => {
   assert.deepEqual(accountBalance({ data: { total_credits: 100.5, total_usage: 25.75 } }), { state: 'available', remainingUsd: 74.75 })
   assert.equal(accountBalance({ data: { total_credits: 0, total_usage: 1 } }).remainingUsd, -1)
@@ -66,20 +66,16 @@ test('key rotation aborts an old request and cannot repopulate its cache', async
   await rejected; const latest = await balances.refresh(); unblock()
   assert.equal(latest.account.state, 'invalid_key'); assert.equal(balances.cached(), latest)
 })
-test('balance transport uses fixed GET endpoints, refuses redirects and bounds response bodies', async () => {
-  const original = globalThis.fetch
-  try {
-    globalThis.fetch = async (url, options) => {
-      assert.equal(String(url), CREDITS_URL); assert.equal(options?.method, 'GET'); assert.equal(options?.body, undefined)
-      assert.equal(options?.redirect, 'error'); assert.equal(options?.cache, 'no-store')
-      assert.equal((options?.headers as Record<string, string>).Authorization, 'Bearer synthetic')
-      return new Response('{"data":{"total_credits":10,"total_usage":2}}', { status: 200 })
-    }
-    assert.equal((await balanceTransport(CREDITS_URL, 'synthetic', new AbortController().signal)).status, 200)
-    await assert.rejects(balanceTransport('https://example.invalid', 'synthetic', new AbortController().signal), /endpoint_refused/)
-    globalThis.fetch = async () => new Response('x'.repeat(16385), { status: 200 })
-    await assert.rejects(balanceTransport(KEY_URL, 'synthetic', new AbortController().signal), /response_too_large/)
-  } finally { globalThis.fetch = original }
+test('balance adapter uses only fixed read-only endpoints and a 16 KiB limit', async () => {
+  let calls = 0
+  const balanceTransport = createBalanceTransport(async (url, options) => {
+    calls++; assert.equal(url, CREDITS_URL); assert.equal(options.body, undefined)
+    assert.equal(options.maxBytes, 16384); assert.equal(options.key, 'synthetic')
+    return { status: 200, value: { data: { total_credits: 10, total_usage: 2 } } }
+  })
+  assert.equal((await balanceTransport(CREDITS_URL, 'synthetic', new AbortController().signal)).status, 200)
+  await assert.rejects(balanceTransport('https://example.invalid', 'synthetic', new AbortController().signal), /endpoint_refused/)
+  assert.equal(calls, 1)
 })
 test('secret-store failure and timeout are bounded and never expose exception details', async () => {
   const failing = new Balances(async () => { throw new Error('private-secret-marker') })

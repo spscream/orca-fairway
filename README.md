@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.5.1 --json
+orca plugin install spscream/orca-fairway@v0.5.2 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -90,7 +90,7 @@ The panel shows account funds and the current key’s remaining limit as separat
 
 The [credits endpoint](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits) requires a management key. With a normal generation key, the account row may show **Management key required** while the [current-key endpoint](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key) provides its remaining limit. **No key limit** is not an unlimited account balance. Fairway does not request an extra management credential; do not replace your generation credential just to populate this display.
 
-Reads use only the existing own OpenRouter secret, fixed GET endpoints, no redirects, an 8-second deadline, and a 16 KiB response limit. No model is invoked, no balance is added to audit or persistent storage, and JEV accounting remains unchanged. An unavailable or unauthorized result never becomes fabricated zero funds. The displayed balance is informational and does not replace the local JEV reservation limit.
+Reads use only the existing own OpenRouter secret, fixed GET endpoints, no redirects, an 8-second deadline, and a 16 KiB response limit. OpenRouter traffic uses a dedicated IPv4 HTTPS connection with normal TLS certificate verification. This avoids Node.js timeouts on hosts with broken IPv6 routing; it does not change system DNS or networking settings. There are no automatic retries. IPv6-only hosts and proxy-only networks need a future transport option. No model is invoked, no balance is added to audit or persistent storage, and JEV accounting remains unchanged. An unavailable or unauthorized result never becomes fabricated zero funds. The displayed balance is informational and does not replace the local JEV reservation limit.
 
 ## Pi Auto
 
@@ -132,6 +132,6 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 0.4.3 uses an original open-frame buoy with a broad float and turquoise waves in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so the activity button uses the built-in flag symbol. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
 
-0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
+0.5.2 fixes OpenRouter IPv6 connection timeouts; an authenticated balance refresh succeeded in the Orca plugin host. 0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
 Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.
