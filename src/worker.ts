@@ -8,11 +8,13 @@ import { NativeRuntime } from './core/runtime.ts'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig } from './core/config.ts'
 import { preferences, withPreferences } from './core/preferences.ts'
 import { startBridge } from './core/bridge.ts'
+import { Workflows, type Artifacts } from './core/workflow.ts'
+import { PrivateArtifacts } from './core/artifacts.ts'
 import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts'
 import type { Status } from './protocol.ts'
 let stop: (() => Promise<void>) | null = null
 export async function deactivate(): Promise<void> { await stop?.(); stop = null }
-export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport) {
+export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport, artifacts: Artifacts = new PrivateArtifacts(join(homedir(), '.config', 'fairway-for-orca', 'workflows'))) {
   return async function activate(orca: OrcaWorkerApi): Promise<void> {
     // Preserve 0.1.0 configuration when adopting Orca's native settings.
     if (!await orca.storage.get('nativeSettingsMigrated')) {
@@ -30,6 +32,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       }
     }
     const engine = new Engine(store, runtime, () => orca.secrets.get('openrouter'), transport)
+    const workflows = new Workflows(store, engine, artifacts)
     let bridge: Awaited<ReturnType<typeof startBridge>> | null = null
     const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll() })
     stop = async () => { settingsChanged.dispose(); engine.cancelAll(); await bridge?.close(); bridge = null }
@@ -46,13 +49,29 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     const status = async (): Promise<Status> => {
       const w = await workspace()
       const config = await engine.config(), lastPlan = (await store.get('lastPlan') as Plan | null) ?? null
-      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null }
+      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null }
     }
     // Errors expose only fixed codes, never exception strings, task text or child output.
     const safe = <T, R>(action: (input: T) => Promise<R>) => async (input: T): Promise<R> => {
       try { return await action(input) } catch (e) { throw new Error(e instanceof RouterError ? e.code : 'operation_unavailable') }
     }
     orca.panels.handle('fairway.status', safe(status))
+    orca.panels.handle('fairway.workflow.create', safe(async ({ task, profileId }) => {
+      const w = await workspace(); requireThat(w, 'local_workspace_required')
+      return workflows.create(task, profileId, w)
+    }))
+    orca.panels.handle('fairway.workflow.action', safe(async ({ id, action, stepId, review }) => {
+      const w = await workspace(); requireThat(w, 'local_workspace_required')
+      if (action === 'launchCoordinator') return workflows.launchCoordinator(id, w)
+      if (action === 'read') return workflows.read(id, w)
+      if (action === 'approve') return workflows.approve(id, w)
+      if (action === 'cancel') return workflows.cancel(id, w)
+      requireThat(typeof stepId === 'string', 'invalid_workflow')
+      if (action === 'route') return workflows.route(id, stepId, w)
+      if (action === 'launch') return workflows.launch(id, stepId, w)
+      if (action === 'review') return workflows.review(id, stepId, review ?? '', w)
+      throw new RouterError('invalid_workflow')
+    }))
     orca.panels.handle('fairway.history', safe(async () => ({ json: JSON.stringify((await engine.history()).slice(-20), null, 2) })))
     orca.panels.handle('fairway.config', safe(async ({ config }) => {
       requireThat(typeof config === 'string' && Buffer.byteLength(config) <= 16_384, 'invalid_config')

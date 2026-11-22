@@ -63,3 +63,20 @@ test('turning execution off in native settings blocks a launch waiting on verifi
   assert.equal((await worker.request('fairway.status') as any).lastPlan, null)
   assert.deepEqual(worker.refusals, []); await worker.deactivate()
 })
+test('workflow handlers connect synthetic analysis, cross-agent routing and guarded dispatch', async () => {
+  let launches = 0
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { launches++; return { code: 0, stdout: '{"ok":true,"result":{"launch":{}}}' } } }
+  const raw = JSON.stringify({ version: 1, summary: 'Synthetic', assumptions: [], questions: [], sources: [], steps: [{ id: 'check', title: 'Synthetic check', instructions: 'Inspect synthetic result', acceptance: 'Synthetic check passes', context: '', routingBrief: 'Small synthetic check', allowedAgents: ['codex'], dependsOn: [] }] })
+  const host = mockHost({ results: {
+    'workspace.readContext': { workspaceId: 'synthetic', branch: 'main', displayName: 'Synthetic', terminals: [] },
+    'workspace.list': { workspaces: [{ id: 'synthetic', kind: 'folder', name: 'Synthetic', path: '/synthetic-project', branch: null, hostId: 'local' }], truncated: false }
+  } })
+  const worker = await mountWorker({ default: createWorker(runtime, undefined, { create: async () => '/synthetic-private/analysis.json', read: async () => raw }) }, { host })
+  const w: any = await worker.request('fairway.workflow.create', { task: 'Synthetic', profileId: 'standard' })
+  await worker.request('fairway.workflow.action', { id: w.id, action: 'read' })
+  await worker.request('fairway.workflow.action', { id: w.id, action: 'approve' })
+  const planned: any = await worker.request('fairway.workflow.action', { id: w.id, action: 'route', stepId: 'check' })
+  assert.equal(planned.runs.check.plan.profile.agent, 'codex')
+  await assert.rejects(worker.request('fairway.workflow.action', { id: w.id, action: 'launch', stepId: 'check' }), /execution_disabled/)
+  assert.equal(launches, 0); assert.deepEqual(worker.refusals, []); await worker.deactivate()
+})

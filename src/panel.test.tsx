@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG, validateConfig } from './core/config.ts'
 import type { Plan } from './core/types.ts'
 import type { Status } from './protocol.ts'
 const example: Plan = { id: 'a'.repeat(36), profile: DEFAULT_CONFIG.profiles[0]!, reason: 'offline', confidence: null, createdAt: 1, expiresAt: 9999999999999, configHash: '', taskHash: '', workspaceHash: '', evidence: { verified: true, source: 'synthetic_metadata' }, costUsd: null, reservedMicrousd: 0, state: 'shadow', observedModel: null, observedEffort: null }
-function status(execution = false): Status { return { config: { ...DEFAULT_CONFIG, execution }, ledger: { calls: 0, reservedMicrousd: 0 }, keyPresent: false, workspace: 'synthetic', lastPlan: null, bridgePath: null } }
+function status(execution = false): Status { return { config: { ...DEFAULT_CONFIG, execution }, ledger: { calls: 0, reservedMicrousd: 0 }, keyPresent: false, workspace: 'synthetic', lastPlan: null, bridgePath: null, workflow: null } }
 test('panel defaults to shadow and picking a profile never launches', async () => {
   let launches = 0
   const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => example, 'fairway.cancel': () => ({ cancelled: true }), 'fairway.launch': () => { launches++; return { ...example, state: 'submitted' } } } })
@@ -90,4 +90,18 @@ test('changing the Pi model or effort clears operator confirmation', async () =>
   await view.type({ label: 'Модель профиля' }, 'synthetic/other-model', { replace: true })
   assert.equal(view.valueOf({ label: 'Я проверил эту пару в Pi' }), false)
   assert.deepEqual(view.errors, []); await view.unmount()
+})
+test('workflow preparation never launches a coordinator automatically', async () => {
+  let prepares = 0, actions = 0, workflow: any = null
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), workflow }),
+    'fairway.workflow.create': () => { prepares++; workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }; return workflow },
+    'fairway.workflow.action': () => { actions++; throw new Error('must not run automatically') }
+  } })
+  const view = await mount(panel, { host }); await view.select({ label: 'Раздел' }, 'workflow')
+  await view.type({ label: 'Задача для координатора' }, 'Synthetic https://example.invalid/docs')
+  await view.press({ text: 'Подготовить анализ' })
+  assert.equal(prepares, 1); assert.equal(actions, 0)
+  assert.equal(view.find({ text: 'Запустить координатора через Orca' })?.props.disabled, true)
+  assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
 })

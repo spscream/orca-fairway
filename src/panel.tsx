@@ -3,6 +3,7 @@ import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
 import { budgetFromText } from './core/preferences.ts'
 import type { Status } from './protocol.ts'
+import { workflowPanel } from './workflow-panel.tsx'
 const state = atom<Status | null>(null)
 const launching = atom(false)
 const task = atom(''), agent = atom<Agent>('codex'), plan = atom<Plan | null>(null)
@@ -22,7 +23,15 @@ function showError(e: unknown): void {
     invalid_model: 'Укажите точный идентификатор модели без пробелов и команд.', invalid_description: 'Описание профиля: от 1 до 400 символов.',
     duplicate_profile: 'Идентификаторы профилей должны быть уникальными.', invalid_fallback: 'Выберите существующий резервный профиль.',
     invalid_pi_pair: 'Для Pi укажите provider/model и допустимое усилие.', invalid_codex_pair: 'Для Codex укажите модель без имени провайдера и допустимое усилие.',
-    invalid_cursor_pair: 'Для Cursor нужен точный идентификатор модели; auto не разрешён.'
+    invalid_cursor_pair: 'Для Cursor нужен точный идентификатор модели; auto не разрешён.',
+    workflow_active: 'Закройте текущий план или завершите его подзадачи.', workflow_task_too_large: 'Постановка для координатора: до 2000 байт UTF-8.',
+    workflow_workspace_changed: 'План относится к другому рабочему пространству.', analysis_not_found: 'Координатор ещё не записал файл анализа.',
+    invalid_analysis: 'Файл анализа не соответствует формату или превышает лимиты.', invalid_dependencies: 'В плане повторяются шаги, есть цикл или неизвестная зависимость.',
+    analysis_needs_clarification: 'Сначала уточните вопросы и недоступные источники с координатором.', analysis_already_approved: 'Принятый план нельзя заменить. Создайте новый план.',
+    analysis_missing_sources: 'В анализе должны быть указаны все ссылки из исходной задачи.',
+    dependencies_not_reviewed: 'Сначала подтвердите результаты зависимостей.', workflow_running: 'Сначала проверьте результат уже запущенной подзадачи.',
+    step_not_launchable: 'Сначала подберите и подтвердите профиль подзадачи.', workflow_not_ready: 'План ещё не готов или уже закрыт.',
+    invalid_review: 'Подтверждение результата: от 1 до 160 байт UTF-8, без кода и секретов.'
   }
   set(error, known[code] ?? 'Операция не завершена. Проверьте настройки и доступность Orca; секреты и вывод процессов скрыты.')
 }
@@ -117,6 +126,11 @@ export default function Panel() {
     <Text muted>Маршрут задачи → модель и усилие → штатный запуск Orca.</Text>
     {read(error) ? <Callout tone="danger" title="Операция остановлена"><Text>{read(error)}</Text></Callout> : null}
     <Tabs label="Раздел" value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>
+      <Tab value="workflow" label="План">{workflowPanel(s, w => {
+        set(error, '')
+        const current = read(state); if (current) set(state, { ...current, workflow: w })
+        void plugin.request('fairway.status').then(next => set(state, next)).catch(showError)
+      }, showError)}</Tab>
       <Tab value="task" label="Задача">
         <Stack gap="md">
           <Callout tone="neutral" title={s?.config.live ? 'JEV включён' : 'Без сети'}><Text>{s?.config.live ? 'JEV получает только введённое описание и карточки разрешённых профилей.' : 'Выбирается резервный профиль. Платных запросов нет.'}</Text></Callout>

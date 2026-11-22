@@ -60,12 +60,15 @@ export class Engine {
       if (record(p) && p.state === 'shadow') await this.store.set('plan:' + id, { ...p, state: 'cancelled' })
     })
   }
-  async plan(task: string, agent: Agent, workspace: Workspace, requestId: string = randomUUID(), externalSignal?: AbortSignal): Promise<Plan> {
+  async plan(task: string, agent: Agent | 'auto', workspace: Workspace, requestId: string = randomUUID(), externalSignal?: AbortSignal,
+    options: { routingTask?: string; allowedAgents?: Agent[]; profileId?: string } = {}): Promise<Plan> {
     validateTask(task)
+    if (options.routingTask !== undefined) validateTask(options.routingTask)
     requireThat(validPlanId(requestId), 'invalid_request_id')
     requireThat(workspace.host === 'local' && typeof workspace.path === 'string' && workspace.path.length > 0 && typeof workspace.id === 'string', 'invalid_workspace')
     const c = await this.config()
-    const candidates = c.profiles.filter(p => p.agent === agent)
+    if (options.profileId !== undefined) requireThat(typeof options.profileId === 'string' && c.profiles.some(p => p.id === options.profileId), 'invalid_profile')
+    const candidates = c.profiles.filter(p => (agent === 'auto' || p.agent === agent) && (!options.allowedAgents || options.allowedAgents.includes(p.agent)) && (!options.profileId || p.id === options.profileId))
     requireThat(candidates.length, 'no_profiles_for_agent')
     await this.serial(async () => {
       requireThat(!(await this.store.get('plan:' + requestId)), 'duplicate_request')
@@ -78,12 +81,13 @@ export class Engine {
     try {
       await this.audit({ id: requestId, state: 'planning', agent })
       try {
-        if (c.live) {
+        if (options.profileId !== undefined) reason = 'coordinator_profile'
+        else if (c.live) {
           const key = await this.getKey()
           if (!key) reason = 'missing_key'
           else {
             signal.throwIfAborted()
-            const body = makeRequest(task, candidates)
+            const body = makeRequest(options.routingTask ?? task, candidates)
             await this.reserve(c); reservedMicrousd = RESERVATION_MICROUSD
             await interruptible(async () => {
               validatePrice(await this.transport(METADATA_URL, { signal }))
@@ -114,6 +118,9 @@ export class Engine {
       await this.audit({ id: requestId, state: plan.state, profile: profile.id, agent: profile.agent, model: profile.model, effort: profile.effort, reason: plan.reason, confidence, costUsd, reservedMicrousd })
       return plan
     } finally { this.active.delete(requestId) }
+  }
+  async workflowEvent(flowId: string, state: string, stepId?: string): Promise<void> {
+    await this.audit({ flowId, state, ...(stepId ? { stepId } : {}) })
   }
   async launch(id: string, task: string, workspace: Workspace): Promise<Plan> {
     validateTask(task); requireThat(validPlanId(id), 'invalid_plan')
