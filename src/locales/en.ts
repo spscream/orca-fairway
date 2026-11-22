@@ -1,4 +1,9 @@
 export const en = {
+  "Read executor report": "Read executor report",
+  "Executor report": "Executor report",
+  "Step completion:": "Step completion:",
+  "Audit findings:": "Audit findings:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "Audit completion and product defects are separate. Findings do not prove product readiness.",
   "Profile level": "Profile level",
   "Unranked": "Unranked",
   "Assign a profile level or leave it unranked.": "Assign a profile level or leave it unranked.",

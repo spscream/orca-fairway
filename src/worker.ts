@@ -97,6 +97,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       requireThat(typeof stepId === 'string', 'invalid_workflow')
       if (action === 'route') return workflows.route(id, stepId, w)
       if (action === 'launch') return workflows.launch(id, stepId, w)
+      if (action === 'inspectResult') { requireThat(await workflows.result(id, stepId, w), 'result_missing'); return workflows.get(id, w) }
       if (action === 'review') return workflows.review(id, stepId, review ?? '', w)
       throw new RouterError('invalid_workflow')
     }))

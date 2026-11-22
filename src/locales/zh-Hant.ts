@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "讀取執行者報告",
+  "Executor report": "執行者報告",
+  "Step completion:": "步驟完成情況：",
+  "Audit findings:": "稽核發現：",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "稽核完成與產品缺陷分開記錄。稽核發現不能證明產品已準備就緒。",
   "Profile level": "設定檔等級",
   "Unranked": "未分級",
   "Assign a profile level or leave it unranked.": "請指定設定檔等級或保持未分級。",

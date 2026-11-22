@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "실행자 보고서 읽기",
+  "Executor report": "실행자 보고서",
+  "Step completion:": "단계 완료:",
+  "Audit findings:": "감사 발견 사항:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "감사 완료와 제품 결함은 별도로 처리됩니다. 발견 사항은 제품의 준비 완료를 입증하지 않습니다.",
   "Profile level": "프로필 수준",
   "Unranked": "미지정",
   "Assign a profile level or leave it unranked.": "프로필 수준을 지정하거나 미지정으로 두세요.",

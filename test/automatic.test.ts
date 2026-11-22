@@ -197,3 +197,47 @@ test('a ranked leader still needs verified metadata and cannot bypass cancellati
   assert.equal((await f.flows.get(id, workspace)).automatic?.reason, 'unverified'); assert.equal(f.launches, 0)
   await f.automatic.pause(); await f.automatic.tick(); assert.equal(f.launches, 0)
 })
+
+test('completed audit findings are preserved and propagated without failing or automatically resolving defects', async () => {
+  const f = fixture(), id = await f.create(), prompts: string[] = []
+  const launch = f.runtime.launch
+  f.runtime.launch = async (...args) => { prompts.push(args[1]); return launch(...args) }
+  await f.automatic.start(id, workspace); await f.automatic.tick()
+  const finding = { severity: 'P1', summary: 'Synthetic product defect', evidence: 'Synthetic reproduction.' }
+  await f.report(id, 'first', { version: 2, findings: [finding] })
+  await f.automatic.tick(); assert.equal((await f.flows.get(id, workspace)).runs.first!.state, 'submitted')
+  f.observed = 'done'; await f.automatic.tick()
+  let w = await f.flows.get(id, workspace)
+  assert.equal(w.runs.first!.state, 'completed'); assert.deepEqual(w.runs.first!.outcome!.findings, [finding])
+  assert.equal(w.runs.first!.outcome!.status, 'completed'); assert.equal(f.launches, 1)
+  await f.automatic.tick(); w = await f.flows.get(id, workspace)
+  assert.equal(f.launches, 2); assert.ok(prompts[1]!.includes(w.runs.first!.result!.path))
+  assert.ok(prompts[1]!.includes('unresolved findings')); assert.ok(prompts[0]!.includes('"version":2'))
+  const history = JSON.stringify(await f.engine.history())
+  assert.equal(history.includes(finding.summary), false); assert.equal(history.includes(finding.evidence), false)
+})
+test('version two findings never bypass failed completion, failed acceptance checks or unresolved questions', async () => {
+  for (const overrides of [{ status: 'failed' }, { checks: [{ name: 'Acceptance', status: 'failed', evidence: 'Synthetic missing delivery.' }] }, { questions: ['Synthetic unresolved question'] }]) {
+    const f = fixture(), id = await f.create(); await f.automatic.start(id, workspace); await f.automatic.tick()
+    await f.report(id, 'first', { version: 2, findings: [{ severity: 'P3', summary: 'Synthetic defect', evidence: 'Synthetic evidence' }], ...overrides })
+    f.observed = 'done'; await f.automatic.tick()
+    const w = await f.flows.get(id, workspace); assert.equal(w.automatic!.state, 'paused'); assert.equal(w.runs.first!.state, 'submitted'); assert.equal(f.launches, 1)
+    assert.equal(w.runs.first!.outcome!.findings!.length, 1)
+  }
+})
+test('legacy failed audit reports remain failed; explicit operator review preserves the original report and dispatch count', async () => {
+  const f = fixture(), id = await f.create(); await f.automatic.start(id, workspace); await f.automatic.tick()
+  const old = await f.report(id, 'first', { status: 'failed', checks: [{ name: 'Product health', status: 'failed', evidence: 'Synthetic audit finding' }] })
+  f.observed = 'done'; await f.automatic.tick()
+  assert.equal((await f.flows.get(id, workspace)).automatic!.reason, 'checks_failed')
+  await f.flows.review(id, 'first', 'Completed audit; unresolved product findings remain in its report.', workspace)
+  const w = await f.flows.get(id, workspace)
+  assert.equal(w.runs.first!.state, 'completed'); assert.equal(w.runs.first!.outcome!.status, 'failed')
+  assert.equal(JSON.stringify(await f.flows.result(id, 'first', workspace)), JSON.stringify(old)); assert.equal(f.launches, 1); assert.equal(f.decisions, 1)
+})
+test('version two report findings are strictly bounded and bound to the original report identity', async () => {
+  const f = fixture(), id = await f.create(); await f.automatic.start(id, workspace); await f.automatic.tick()
+  const value = await f.report(id, 'first', { version: 2, findings: [] }), run = (await f.flows.get(id, workspace)).runs.first!
+  const finding = { severity: 'P0', summary: 'Synthetic finding', evidence: 'Synthetic evidence' }
+  for (const overrides of [{ findings: undefined }, { findings: Array(9).fill(finding) }, { findings: [{ ...finding, severity: ['P0'] }] }, { findings: [{ ...finding, summary: 'я'.repeat(81) }] }, { findings: [{ ...finding, evidence: 'x'.repeat(401) }] }, { findings: [{ ...finding, command: 'synthetic' }] }, { token: 'wrong' }, { status: ['completed'] }, { version: 3 }]) assert.throws(() => validateStepResult({ ...value, ...overrides }, id, 'first', run), /invalid_step_result/)
+})

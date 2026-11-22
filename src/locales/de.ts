@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "Ausführungsbericht lesen",
+  "Executor report": "Ausführungsbericht",
+  "Step completion:": "Schrittabschluss:",
+  "Audit findings:": "Auditbefunde:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "Auditabschluss und Produktmängel werden getrennt erfasst. Befunde belegen keine Produktreife.",
   "Profile level": "Profilstufe",
   "Unranked": "Nicht eingestuft",
   "Assign a profile level or leave it unranked.": "Weisen Sie eine Profilstufe zu oder lassen Sie sie offen.",

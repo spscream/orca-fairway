@@ -1,7 +1,7 @@
 import type { Config, Ledger, Plan, Agent } from './core/types.ts'
 import type { Workflow, AnalysisInspection } from './core/workflow.ts'
 import type { BalanceSnapshot } from './core/balance.ts'
-export type WorkflowAction = 'startAutomatic' | 'pauseAutomatic' | 'refreshCoordinator' | 'launchCoordinator' | 'read' | 'approve' | 'route' | 'launch' | 'review' | 'cancel'
+export type WorkflowAction = 'startAutomatic' | 'pauseAutomatic' | 'refreshCoordinator' | 'launchCoordinator' | 'read' | 'approve' | 'route' | 'launch' | 'inspectResult' | 'review' | 'cancel'
 export interface Status { config: Config; ledger: Ledger; keyPresent: boolean; workspace: string | null; lastPlan: Plan | null; bridgePath: string | null; workflow: Workflow | null; balance: BalanceSnapshot | null }
 export {}
 declare module 'orca' {

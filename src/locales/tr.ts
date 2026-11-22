@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "Yürütücü raporunu oku",
+  "Executor report": "Yürütücü raporu",
+  "Step completion:": "Adımın tamamlanması:",
+  "Audit findings:": "Denetim bulguları:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "Denetimin tamamlanması ve ürün kusurları ayrıdır. Bulgular ürünün hazır olduğunu kanıtlamaz.",
   "Profile level": "Profil düzeyi",
   "Unranked": "Düzey atanmamış",
   "Assign a profile level or leave it unranked.": "Bir profil düzeyi atayın veya atanmamış bırakın.",

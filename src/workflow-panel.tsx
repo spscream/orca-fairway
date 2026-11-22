@@ -115,6 +115,15 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
               {run?.plan && !(run.plan.reason === 'budget_exhausted' && s && routingBudget(s.config, s.ledger, w).sufficient) ? <Text>{t("Selected:")} {run.plan.profile.agent} · {run.plan.profile.model} · {run.plan.profile.effort ?? 'native'} · {displayState(run.plan.reason)}.</Text> : null}
               {run?.state === 'dispatch_unknown' ? <Text tone="warning">{t("The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.")}</Text> : null}
               {run?.review ? <Text>{t("Accepted result:")} {run.review}</Text> : null}
+              {run?.result && w.automatic?.state !== 'running' ? <Button disabled={waiting} onPress={() => action('inspectResult', step.id)}>{t('Read executor report')}</Button> : null}
+              {run?.outcome ? <Collapsible title={t('Executor report')}>
+                <Text>{t('Step completion:')} {run.outcome.status} · {run.outcome.summary}</Text>
+                {run.outcome.checks.map((check, i) => <Text key={`check${i}`} tone={check.status === 'failed' ? 'warning' : 'neutral'}>{check.status} · {check.name}: {check.evidence}</Text>)}
+                <Text>{t('Audit findings:')} {run.outcome.findings?.length ?? '—'}</Text>
+                {run.outcome.findings?.map((finding, i) => <Text key={`finding${i}`} tone="warning">{finding.severity} · {finding.summary}: {finding.evidence}</Text>)}
+                {run.outcome.questions.map((question, i) => <Text key={`question${i}`} tone="warning">{t('Open question:')} {question}</Text>)}
+                <Text muted>{t('Audit completion and product defects are separate. Findings do not prove product readiness.')}</Text>
+              </Collapsible> : null}
             </Stack>
           </Collapsible>
         })}

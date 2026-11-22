@@ -26,6 +26,7 @@ function showError(e: unknown): void {
     automatic_workflow_active: 'Another workflow is running automatically. Pause it before starting this plan.', automatic_running: 'Pause automatic execution before using manual controls.',
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
+    result_missing: 'The executor report is missing or invalid.', invalid_step_result: 'The executor report is missing or invalid.',
     plan_not_launchable: 'The decision was cancelled, expired, or already used.', plan_already_consumed: 'This decision cannot be dispatched again.',
     no_profiles_for_agent: 'Add profiles for the selected agent in Settings.', invalid_config: 'Check the profile settings.', invalid_task: 'The description must contain 1–4096 UTF-8 bytes.',
     invalid_budget: 'Budget must be nonnegative, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be a nonnegative integer.',

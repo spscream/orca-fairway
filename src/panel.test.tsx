@@ -467,3 +467,29 @@ test('automatic ranked low-confidence selection is disclosed without any launch 
     assert.equal(actions, 0); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('executor completion and findings are displayed separately; reading a report neither accepts nor launches', async () => {
+  const workflow = auditedWorkflow('completed')
+  workflow.runs.two = { state: 'submitted', plan: { ...example, state: 'submitted' }, review: null, result: { path: '/synthetic-private/result.json', token: 'synthetic' } }
+  workflow.automatic = { state: 'paused', reason: 'checks_failed', configHash: 'synthetic', approvedHash: workflow.approvedHash!, expiresAt: Date.now() + 100000, dispatches: 2, limit: 2 }
+  const actions: string[] = []
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), workflow }),
+    'fairway.workflow.action': input => {
+      actions.push(input.action)
+      assert.equal(input.action, 'inspectResult'); assert.equal(input.stepId, 'two')
+      workflow.runs.two!.outcome = { status: 'completed', summary: 'Synthetic audit completed', checks: [{ name: 'Audit delivered', status: 'passed', evidence: 'Synthetic report' }], findings: [{ severity: 'P1', summary: 'Synthetic product defect remains', evidence: 'Synthetic evidence' }], questions: [] }
+      return workflow
+    }
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    assert.equal(actions.length, 0)
+    await view.press({ text: 'Read executor report' }); assert.deepEqual(actions, ['inspectResult'])
+    let tree = JSON.stringify(view.tree()); assert.ok(tree.includes('Executor report'))
+    await view.toggle({ label: 'Executor report', type: 'Collapsible' })
+    tree = JSON.stringify(view.tree()); assert.ok(tree.includes('Step completion:')); assert.ok(tree.includes('Audit findings:'))
+    assert.ok(tree.includes('Synthetic product defect remains')); assert.ok(tree.includes('Audit delivered'))
+    assert.equal(workflow.runs.two!.state, 'submitted'); assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})

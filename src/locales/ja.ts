@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "実行担当のレポートを読む",
+  "Executor report": "実行担当のレポート",
+  "Step completion:": "ステップの完了:",
+  "Audit findings:": "監査の指摘事項:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "監査の完了と製品の不具合は別々に扱います。指摘事項は製品の準備完了を証明しません。",
   "Profile level": "プロファイルのレベル",
   "Unranked": "未設定",
   "Assign a profile level or leave it unranked.": "プロファイルのレベルを設定するか、未設定のままにしてください。",

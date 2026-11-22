@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Read executor report": "Прочитать отчёт исполнителя",
+  "Executor report": "Отчёт исполнителя",
+  "Step completion:": "Завершение шага:",
+  "Audit findings:": "Находки аудита:",
+  "Audit completion and product defects are separate. Findings do not prove product readiness.": "Завершение аудита и дефекты продукта учитываются отдельно. Наличие отчёта не подтверждает готовность продукта.",
   "Profile level": "Уровень профиля",
   "Unranked": "Не задан",
   "Assign a profile level or leave it unranked.": "Задайте уровень профиля или оставьте его незаданным.",
