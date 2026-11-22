@@ -1,0 +1,27 @@
+{
+  "name": "fairway-for-orca",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Allowlisted JEV task routing for Orca, with native Codex, Pi and Cursor adapters.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "stage:plugin": "node scripts/stage-plugin.mjs",
+    "test:orca": "npm run stage:plugin && node scripts/orca.mjs plugin test .orca/plugin --json",
+    "check:orca": "npm run stage:plugin && node scripts/orca.mjs plugin check .orca/plugin --json",
+    "validate": "npm run stage:plugin && node scripts/orca.mjs plugin validate .orca/plugin --json",
+    "types:orca": "node scripts/orca.mjs plugin types . --json",
+    "audit:public": "node scripts/audit-public.mjs",
+    "typecheck:core": "tsc -p tsconfig.core.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

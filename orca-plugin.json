@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 2,
+  "id": "fairway",
+  "name": "Fairway for Orca",
+  "version": "0.1.0",
+  "description": "Choose an allowlisted Codex, Pi or Cursor profile with JEV, then explicitly launch it through Orca. Shadow mode by default.",
+  "author": { "name": "spscream", "url": "https://github.com/spscream" },
+  "repository": "https://github.com/spscream/orca-fairway",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.265" },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "capabilities": [{ "kind": "storage:own" }, { "kind": "secrets:own" }, { "kind": "workspace:read" }, { "kind": "agent:launch" }],
+  "contributes": {
+    "panels": [{ "id": "fairway", "title": "Fairway", "icon": "branch", "entry": "src/panel.tsx", "ui": "components" }],
+    "commands": [{ "id": "fairway.status", "title": "Fairway: состояние маршрутизатора", "when": "global" }]
+  }
+}
