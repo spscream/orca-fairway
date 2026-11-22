@@ -1,6 +1,6 @@
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
-import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Text, Textarea, settings, type PanelContext } from 'orca'
+import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, IconButton, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { PROFILE_LEVELS } from './core/profile-level.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
@@ -193,19 +193,25 @@ export default function Panel() {
     ? '$' + account.remainingUsd.toFixed(2) : '—'
   return <Stack gap="md">
     <Row justify="between" align="center" wrap><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{!s ? (read(statusError) ? '—' : t("Working")) : s.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
-    <Row align="center" justify="between" gap="xs" wrap>
-      <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
-      {section !== 'statistics' ? <Button variant="ghost" size="sm" onPress={() => set(tab, 'statistics')}>{t('OpenRouter balance')} · {compactBalance}</Button> : null}
-    </Row>
+    <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
     {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
     {read(statusError) ? <Callout tone="warning" title={t('Unable to load status.')}><Button disabled={read(loadingStatus)} onPress={refresh}>{t('Refresh status')}</Button></Callout> : null}
     {!s && read(loadingStatus) ? <Spinner label={t("Working")} /> : null}
     {read(uncertain) && !waiting ? <Callout tone="warning" title={t("The dispatch outcome is unknown. Inspect Orca before starting anything again.")}><Button variant="ghost" onPress={refresh}>{t("Refresh status")}</Button></Callout> : null}
-    <Select label={t("Section")} value={read(tab)} options={[
-      { value: 'workflow', label: t('Workflow') }, { value: 'task', label: t('Task') },
-      { value: 'settings', label: t('Settings') }, { value: 'pi', label: 'Pi Auto' },
-      { value: 'statistics', label: t('Statistics') }, { value: 'history', label: t('Audit log') },
-    ]} onChange={v => { set(tab, v); if (v === 'history') void loadHistory() }} />
+    <Row gap="xs" align="center" wrap>
+      {([
+        { value: 'workflow', label: t('Workflow'), icon: 'layers' },
+        { value: 'task', label: t('Task'), icon: 'file-text' },
+        { value: 'settings', label: t('Settings'), icon: 'settings' },
+        { value: 'pi', label: 'Pi Auto', icon: 'bot' },
+        { value: 'statistics', label: t('Statistics'), icon: 'bar-chart-3' },
+        { value: 'history', label: t('Audit log'), icon: 'book' },
+      ] as const).map(({ value, label, icon }) => <IconButton
+        key={value} icon={icon}
+        label={label} tooltip={label} size="sm" variant={section === value ? 'solid' : 'ghost'}
+        onPress={() => { if (section === value) return; set(tab, value); if (value === 'history') void loadHistory() }}
+      />)}
+    </Row>
       {read(tab) === 'workflow' ? workflowPanel(s, w => {
         set(error, ''); reconcileWorkflow(w)
         const current = read(state); if (current) set(state, { ...current, workflow: w })
@@ -285,6 +291,9 @@ export default function Panel() {
         </Stack>
       </Card>
     </Stack> : null}
-    <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
+    <Row align="center" justify="between" gap="xs" wrap>
+      {section !== 'statistics' ? <Button variant="ghost" size="sm" onPress={() => set(tab, 'statistics')}>{t('OpenRouter balance')} · {compactBalance}</Button> : null}
+      <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
+    </Row>
   </Stack>
 }

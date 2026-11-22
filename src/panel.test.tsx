@@ -34,7 +34,7 @@ test('settings form saves modes and dollar limits without JSON editing or execut
     'fairway.launch': () => { launches++; return example }
   } })
   const view = await mount(panel, { host })
-  await view.select({ label: 'Section' }, 'settings')
+  await view.press({ label: 'Settings', type: 'IconButton' })
   assert.equal(view.find({ label: 'Settings JSON' }), null)
   await view.toggle({ label: 'Allow paid JEV requests' })
   await view.toggle({ label: 'Allow explicit execution through Orca' })
@@ -51,7 +51,7 @@ test('profile editor adds an exact Cursor alias, renames fallback and removes it
   let saved: any = null
   const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.config': ({ config }) => { saved = validateConfig(JSON.parse(config)); return { ...status(), config: saved } } } })
   const view = await mount(panel, { host })
-  await view.select({ label: 'Section' }, 'settings'); await view.press({ text: 'Add profile' })
+  await view.press({ label: 'Settings', type: 'IconButton' }); await view.press({ text: 'Add profile' })
   await view.select({ label: 'Profile agent' }, 'cursor')
   assert.equal(view.find({ label: 'Profile effort' }), null)
   await view.type({ label: 'Profile model' }, 'synthetic-high', { replace: true })
@@ -69,7 +69,7 @@ test('profile editor adds an exact Cursor alias, renames fallback and removes it
 test('form rejects excessive budgets before saving and backend rejects an injected model', async () => {
   let saves = 0
   const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.config': ({ config }) => { saves++; validateConfig(JSON.parse(config)); return status() } } })
-  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'settings')
+  const view = await mount(panel, { host }); await view.press({ label: 'Settings', type: 'IconButton' })
   for (const text of ['10000000000', '-1', 'NaN', '0.0000001']) {
     await view.type({ label: 'Total JEV budget, USD' }, text, { replace: true }); await view.press({ text: 'Save settings' })
   }
@@ -82,7 +82,7 @@ test('form rejects excessive budgets before saving and backend rejects an inject
 })
 test('changing the Pi model or effort clears operator confirmation', async () => {
   const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status() } }) })
-  await view.select({ label: 'Section' }, 'settings'); await view.select({ label: 'Profile agent' }, 'pi')
+  await view.press({ label: 'Settings', type: 'IconButton' }); await view.select({ label: 'Profile agent' }, 'pi')
   await view.type({ label: 'Profile model' }, 'synthetic/model', { replace: true })
   await view.toggle({ label: 'I verified this pair in Pi' })
   assert.equal(view.valueOf({ label: 'I verified this pair in Pi' }), true)
@@ -100,7 +100,7 @@ test('workflow preparation never launches a coordinator automatically', async ()
     'fairway.workflow.create': () => { prepares++; workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }; return workflow },
     'fairway.workflow.action': () => { actions++; throw new Error('must not run automatically') }
   } })
-  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  const view = await mount(panel, { host }); await view.press({ label: 'Workflow', type: 'IconButton' })
   await view.type({ label: 'Coordinator task' }, 'Synthetic https://example.invalid/docs')
   await view.press({ text: 'Prepare analysis' })
   assert.equal(prepares, 1); assert.equal(actions, 0)
@@ -119,13 +119,13 @@ test('all host locales translate settings and workflow controls without changing
     } })
     const tr = (message: Parameters<typeof translate>[1]) => translate(locale, message)
     const view = await mount(panel, { host, locale })
-    await view.select({ label: tr('Section') }, 'settings')
+    await view.press({ label: tr('Settings'), type: 'IconButton' })
     assert.equal(view.valueOf({ label: tr('When to choose this profile') }), 'USER-AUTHORED-MARKER')
     assert.ok(view.find({ text: tr('Save settings') }))
     await view.type({ label: tr('Total JEV budget, USD') }, '-1', { replace: true })
     await view.press({ text: tr('Save settings') })
     assert.ok(view.find({ text: tr('Budget must be nonnegative, with up to 6 decimal places.') }))
-    await view.select({ label: tr('Section') }, 'workflow')
+    await view.press({ label: tr('Workflow'), type: 'IconButton' })
     assert.ok(view.find({ label: tr('Coordinator task') }))
     assert.equal(view.find({ text: tr('Prepare analysis') })?.props.disabled, true)
     assert.equal(requests, 0, locale)
@@ -150,7 +150,7 @@ test('balance refresh is explicit and a restricted account never displays fabric
     assert.ok(tree.includes('Management key required')); assert.ok(tree.includes('$4.0000'))
     assert.ok(tree.includes('Account balance'))
     assert.ok(tree.includes('Key limit remaining'))
-    await view.select({ label: 'Section' }, 'settings')
+    await view.press({ label: 'Settings', type: 'IconButton' })
     assert.ok(view.find({ text: 'OpenRouter balance · —' }))
     assert.equal(view.find({ text: 'Refresh balance' }), null)
     assert.ok(!tree.includes('$0.0000'))
@@ -160,7 +160,7 @@ test('balance refresh is explicit and a restricted account never displays fabric
 test('a wrapped analysis error shows the actionable message rather than the generic failure', async () => {
   const workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }
   const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(), workflow }), 'fairway.workflow.action': input => { assert.equal(Object.hasOwn(input, 'stepId'), false); throw Object.assign(new Error('Plugin request failed: analysis_not_found'), { code: 'analysis_not_found' }) } } })
-  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  const view = await mount(panel, { host }); await view.press({ label: 'Workflow', type: 'IconButton' })
   await view.press({ text: 'Read coordinator analysis' })
   assert.ok(view.find({ text: 'The coordinator has not written the analysis file yet.' })); assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -172,7 +172,7 @@ test('refreshing an unverified coordinator enables its launch without dispatchin
     'fairway.status': () => ({ ...status(true), workflow }),
     'fairway.workflow.action': input => { actions++; assert.equal(input.action, 'refreshCoordinator'); assert.equal(Object.hasOwn(input, 'stepId'), false); workflow = { ...workflow, coordinator: example }; return workflow }
   } })
-  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  const view = await mount(panel, { host }); await view.press({ label: 'Workflow', type: 'IconButton' })
   assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, true)
   await view.press({ text: 'Refresh coordinator profile' })
   assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, false); assert.equal(actions, 1)
@@ -190,7 +190,7 @@ test('failed analysis read shows safe field diagnostics; a successful retry clea
     },
     'fairway.workflow.inspect': input => { assert.equal(input.id, workflow.id); inspections++; return { valid: false, issue: { path: 'sources', rule: 'items', actual: 33, limit: 32 } } }
   } })
-  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  const view = await mount(panel, { host }); await view.press({ label: 'Workflow', type: 'IconButton' })
   await view.press({ text: 'Read coordinator analysis' }); assert.equal(inspections, 1)
   assert.ok(JSON.stringify(view.tree()).includes('Analysis validation details')); assert.ok(JSON.stringify(view.tree()).includes('sources'))
   await view.press({ text: 'Read coordinator analysis' }); assert.equal(reads, 2)
@@ -207,7 +207,7 @@ test('F01: every locale saves the none option as the machine value', async () =>
       'fairway.status': () => status(),
       'fairway.config': ({ config }) => { const c = validateConfig(JSON.parse(config)); effort = c.profiles[0]!.effort; return { ...status(), config: c } }
     } }) })
-    await view.select({ label: tr('Section') }, 'settings')
+    await view.press({ label: tr('Settings'), type: 'IconButton' })
     await view.select({ label: tr('Profile effort') }, 'none')
     await view.press({ text: tr('Save settings') })
     assert.equal(effort, 'none', locale); assert.deepEqual(view.errors, []); await view.unmount()
@@ -219,7 +219,7 @@ test('F02: empty save cannot delete a key; explicit delete is separate and confi
     'fairway.status': () => ({ ...status(), keyPresent: true }),
     'fairway.key': ({ key }) => { keys.push(key); return { present: !!key } }
   } }) })
-  await view.select({ label: 'Section' }, 'settings')
+  await view.press({ label: 'Settings', type: 'IconButton' })
   assert.equal(view.find({ text: 'Save key' })?.props.disabled, true)
   assert.equal(keys.length, 0)
   await view.type({ label: 'OpenRouter key' }, 'SYNTHETIC-KEY')
@@ -233,22 +233,22 @@ test('F03: workspace drafts survive remount, secrets do not, and clear removes d
   const host = mockHost({ requests: { 'fairway.status': () => status() } })
   let view = await mount(panel, { host })
   await view.type({ label: 'Task description' }, 'LOCAL-DRAFT')
-  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'COORDINATOR-DRAFT')
-  await view.select({ label: 'Section' }, 'settings')
+  await view.press({ label: 'Workflow', type: 'IconButton' }); await view.type({ label: 'Coordinator task' }, 'COORDINATOR-DRAFT')
+  await view.press({ label: 'Settings', type: 'IconButton' })
   await view.type({ label: 'Total JEV budget, USD' }, '0.25', { replace: true })
   await view.type({ label: 'OpenRouter key' }, 'SECRET-DRAFT')
   const persisted = view.persisted; assert.ok(!JSON.stringify(persisted).includes('SECRET-DRAFT'))
   await view.unmount(); view = await mount(panel, { host, persisted })
   assert.equal(view.valueOf({ label: 'Total JEV budget, USD' }), '0.25')
   assert.equal(view.valueOf({ label: 'OpenRouter key' }), '')
-  await view.select({ label: 'Section' }, 'task'); assert.equal(view.valueOf({ label: 'Task description' }), 'LOCAL-DRAFT')
-  await view.select({ label: 'Section' }, 'workflow'); assert.equal(view.valueOf({ label: 'Coordinator task' }), 'COORDINATOR-DRAFT')
-  await view.select({ label: 'Section' }, 'settings'); await view.press({ text: 'Clear drafts' })
+  await view.press({ label: 'Task', type: 'IconButton' }); assert.equal(view.valueOf({ label: 'Task description' }), 'LOCAL-DRAFT')
+  await view.press({ label: 'Workflow', type: 'IconButton' }); assert.equal(view.valueOf({ label: 'Coordinator task' }), 'COORDINATOR-DRAFT')
+  await view.press({ label: 'Settings', type: 'IconButton' }); await view.press({ text: 'Clear drafts' })
   const cleared = view.persisted; await view.unmount()
   view = await mount(panel, { host, persisted: cleared })
   assert.equal(view.valueOf({ label: 'Total JEV budget, USD' }), '0.1')
-  await view.select({ label: 'Section' }, 'task'); assert.equal(view.valueOf({ label: 'Task description' }), '')
-  await view.select({ label: 'Section' }, 'workflow'); assert.equal(view.valueOf({ label: 'Coordinator task' }), '')
+  await view.press({ label: 'Task', type: 'IconButton' }); assert.equal(view.valueOf({ label: 'Task description' }), '')
+  await view.press({ label: 'Workflow', type: 'IconButton' }); assert.equal(view.valueOf({ label: 'Coordinator task' }), '')
   await view.unmount()
 })
 test('F04/F05: restored plans are read only; lost launch responses stay blocked through refresh and remount', async () => {
@@ -280,12 +280,12 @@ test('F08: balance errors are local and a successful retry clears them without e
     'fairway.balance': () => { if (++reads === 1) throw new Error('synthetic failure'); return { account: { state: 'available', remainingUsd: 4 }, key: { state: 'unlimited', remainingUsd: null }, checkedAt: 1 } }
   } }) })
   await view.type({ label: 'Task description' }, 'Synthetic'); await view.press({ text: 'Select profile' })
-  await view.select({ label: 'Section' }, 'statistics')
+  await view.press({ label: 'Statistics', type: 'IconButton' })
   await view.press({ text: 'Refresh balance' }); assert.ok(view.find({ text: 'Unable to refresh balance. Try again.' }))
   await view.press({ text: 'Refresh balance' }); assert.equal(view.find({ text: 'Unable to refresh balance. Try again.' }), null)
   assert.ok(JSON.stringify(view.tree()).includes('$4.0000')); assert.ok(JSON.stringify(view.tree()).includes('Operation stopped'))
-  for (const section of ['workflow', 'task', 'settings', 'pi']) {
-    await view.select({ label: 'Section' }, section)
+  for (const label of ['Workflow', 'Task', 'Settings', 'Pi Auto']) {
+    await view.press({ label, type: 'IconButton' })
     assert.ok(view.find({ text: 'OpenRouter balance · $4.00' }))
     assert.equal(view.find({ text: 'Refresh balance' }), null)
   }
@@ -297,7 +297,7 @@ test('F09: multibyte task and coordinator inputs block requests before byte limi
   const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => { requests++; return example } } }) })
   await view.type({ label: 'Task description' }, 'я'.repeat(2049)); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
   await view.type({ label: 'Task description' }, '😀'.repeat(1024), { replace: true }); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, false)
-  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'я'.repeat(4097))
+  await view.press({ label: 'Workflow', type: 'IconButton' }); await view.type({ label: 'Coordinator task' }, 'я'.repeat(4097))
   assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true)
   await view.type({ label: 'Coordinator task' }, 'я'.repeat(1693), { replace: true })
   assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, false)
@@ -371,7 +371,7 @@ test('F02: both key actions stay disabled while a key update is pending', async 
   let resolve!: (value: { present: boolean }) => void
   const update = new Promise<{ present: boolean }>(r => { resolve = r })
   const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => ({ ...status(), keyPresent: true }), 'fairway.key': () => update } }) })
-  await view.select({ label: 'Section' }, 'settings'); await view.type({ label: 'OpenRouter key' }, 'SYNTHETIC-KEY')
+  await view.press({ label: 'Settings', type: 'IconButton' }); await view.type({ label: 'OpenRouter key' }, 'SYNTHETIC-KEY')
   const press = view.press({ text: 'Save key' }); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r))
   assert.equal(view.find({ text: 'Save key' })?.props.disabled, true)
   assert.equal(view.find({ text: 'Delete key' })?.props.disabled, true)
@@ -401,7 +401,7 @@ test('one automatic-plan action authorizes the graph and hides manual review for
   } })
   const view = await mount(panel, { host });
   try {
-    await view.select({ label: 'Section' }, 'workflow')
+    await view.press({ label: 'Workflow', type: 'IconButton' })
     assert.equal(calls, 0); await view.press({ text: 'Run plan automatically', type: 'Button' }); assert.equal(calls, 1)
     assert.ok(view.find({ text: 'Pause automatic execution' }))
     assert.equal(view.find({ label: 'Reviewed result: first' }), null)
@@ -420,14 +420,14 @@ test('unlimited JEV is an explicit saved switch, disables cap fields and preserv
   } })
   const view = await mount(panel, { host })
   try {
-  await view.select({ label: 'Section' }, 'workflow')
+  await view.press({ label: 'Workflow', type: 'IconButton' })
   assert.equal(view.find({ type: 'Button', text: 'Continue automatically' })?.props.disabled, true)
   assert.ok(JSON.stringify(view.tree()).includes('The JEV allowance cannot cover the remaining steps.'))
   await view.press({ type: 'Button', text: 'Settings' })
   await view.toggle({ label: 'Unlimited JEV decisions' })
   assert.equal(saves, 0); assert.equal(view.find({ label: 'Total JEV budget, USD' })?.props.disabled, true)
   await view.press({ text: 'Save settings' }); assert.equal(saves, 1); assert.equal(config.unlimitedJev, true)
-  await view.select({ label: 'Section' }, 'workflow')
+  await view.press({ label: 'Workflow', type: 'IconButton' })
   assert.equal(view.find({ type: 'Button', text: 'Continue automatically' })?.props.disabled, false)
   assert.ok(JSON.stringify(view.tree()).includes('Unlimited')); assert.ok(JSON.stringify(view.tree()).includes('0.065540'))
   assert.equal(actions, 0); assert.deepEqual(view.errors, [])

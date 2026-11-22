@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.7
+
+- Use six icon buttons with tooltips and an active state for section navigation.
+- Move the compact OpenRouter balance to the footer.
+
 ## 0.8.6
 
 - Show the cached OpenRouter account balance in a compact button.
