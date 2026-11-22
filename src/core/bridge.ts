@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { mkdir, open, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
+import { parseJson } from './json.ts'
 import { record, requireThat } from './config.ts'
 export interface BridgeConnection { version: 1; endpoint: string; token: string; expiresAt: number }
 export async function startBridge(directory: string, decide: (task: string, session: string) => Promise<unknown>): Promise<{ path: string; close(): Promise<void> }> {
@@ -22,7 +23,7 @@ export async function startBridge(directory: string, decide: (task: string, sess
     try {
       const chunks: Buffer[] = []; let length = 0
       for await (const chunk of req) { length += chunk.length; requireThat(length <= 8192, 'request_too_large'); chunks.push(Buffer.from(chunk)) }
-      const input: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      const input: unknown = parseJson(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)))
       requireThat(record(input) && Object.keys(input).sort().join(',') === 'session,task' && typeof input.task === 'string' && typeof input.session === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(input.session), 'invalid_request')
       const result = await decide(input.task, input.session)
       if (!res.destroyed) res.end(JSON.stringify(result))

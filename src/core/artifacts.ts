@@ -37,11 +37,13 @@ export class PrivateArtifacts implements Artifacts {
     const path = join(directory, name)
     try {
       const stat = await lstat(path); requireThat(stat.isFile() && !stat.isSymbolicLink(), 'artifact_path_refused')
-      const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
+      const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK)
       try {
-        const info = await file.stat(); requireThat(info.isFile() && info.size <= limit, error)
+        const info = await file.stat(); requireThat(info.isFile() && info.nlink === 1 && info.dev === stat.dev && info.ino === stat.ino && info.size <= limit, error)
         const buffer = Buffer.alloc(limit + 1), { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
-        requireThat(bytesRead <= limit, error); return buffer.subarray(0, bytesRead).toString('utf8')
+        requireThat(bytesRead <= limit && await realpath(directory) === resolve(directory), error)
+        try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, bytesRead)) }
+        catch { requireThat(false, error) }
       } finally { await file.close() }
     } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; throw e }
   }

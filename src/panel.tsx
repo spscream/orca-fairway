@@ -1,6 +1,6 @@
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
-import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
+import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { PROFILE_LEVELS } from './core/profile-level.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
@@ -11,6 +11,7 @@ import type { BalanceItem } from './core/balance.ts'
 import { bytes, displayState } from './ui-presentation.ts'
 import { knownErrorCode } from './core/ui-errors.ts'
 const state = atom<Status | null>(null)
+const loadingStatus = atom(false), statusError = atom(false)
 const launching = atom(false)
 const task = atom('taskDraft', '', { persist: 'workspace' }), agent = atom<Agent>('agentDraft', 'codex', { persist: 'workspace' }), plan = atom<Plan | null>(null)
 const journal = atom<string | null>(null), journalLoading = atom(false), journalError = atom(false)
@@ -24,7 +25,7 @@ function showError(e: unknown): void {
   const known: Record<string, Message> = {
     workflow_prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
     automatic_budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
-    automatic_workflow_active: 'Another workflow is running automatically. Pause it before starting this plan.', automatic_running: 'Pause automatic execution before using manual controls.',
+    automatic_workflow_active: 'Finish the active plan or confirm its executor has ended before starting another plan.', automatic_running: 'Pause automatic execution before using manual controls.',
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
     result_missing: 'The executor report is missing or invalid.', invalid_step_result: 'The executor report is missing or invalid.',
@@ -81,7 +82,13 @@ function removeProfile(): void {
   const profiles = config.profiles.filter((_, i) => i !== read(selectedProfile))
   change({ profiles, fallback: profiles.some(p => p.id === config.fallback) ? config.fallback : profiles[0]!.id }); set(selectedProfile, 0)
 }
-async function refresh(): Promise<void> { try { apply(await plugin.request('fairway.status')) } catch (e) { showError(e) } }
+async function refresh(): Promise<void> {
+  if (read(loadingStatus)) return
+  set(loadingStatus, true)
+  try { apply(await plugin.request('fairway.status')); set(statusError, false) }
+  catch { set(statusError, true) }
+  finally { set(loadingStatus, false) }
+}
 async function loadHistory(): Promise<void> {
   set(journalLoading, true); set(journalError, false)
   try { set(journal, (await plugin.request('fairway.history')).json) } catch { set(journalError, true) } finally { set(journalLoading, false) }
@@ -182,21 +189,26 @@ function settingsForm() {
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy), errorMessage = read(error)
   return <Stack gap="md">
-    <Row justify="between" align="center" wrap><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{!s ? t("Working") : s.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
+    <Row justify="between" align="center" wrap><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{!s ? (read(statusError) ? '—' : t("Working")) : s.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
     <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
     {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
-    {!s ? <Spinner label={t("Working")} /> : null}
+    {read(statusError) ? <Callout tone="warning" title={t('Unable to load status.')}><Button disabled={read(loadingStatus)} onPress={refresh}>{t('Refresh status')}</Button></Callout> : null}
+    {!s && read(loadingStatus) ? <Spinner label={t("Working")} /> : null}
     {read(uncertain) && !waiting ? <Callout tone="warning" title={t("The dispatch outcome is unknown. Inspect Orca before starting anything again.")}><Button variant="ghost" onPress={refresh}>{t("Refresh status")}</Button></Callout> : null}
-    <Tabs label={t("Section")} value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void loadHistory() }}>
-      <Tab value="workflow" label={t("Workflow")}>{workflowPanel(s, w => {
+    <Select label={t("Section")} value={read(tab)} options={[
+      { value: 'workflow', label: t('Workflow') }, { value: 'task', label: t('Task') },
+      { value: 'settings', label: t('Settings') }, { value: 'pi', label: 'Pi Auto' },
+      { value: 'history', label: t('Audit log') },
+    ]} onChange={v => { set(tab, v); if (v === 'history') void loadHistory() }} />
+      {read(tab) === 'workflow' ? workflowPanel(s, w => {
         set(error, ''); reconcileWorkflow(w)
         const current = read(state); if (current) set(state, { ...current, workflow: w })
         void plugin.request('fairway.status').then(next => set(state, next)).catch(showError)
-      }, showError, () => set(tab, 'settings'))}</Tab>
-      <Tab value="task" label={t("Task")}>
+      }, showError, () => set(tab, 'settings')) : null}
+      {read(tab) === 'task' ?
         <Stack gap="md">
           {s ? <Callout tone="neutral" title={s?.config.live ? t("JEV enabled") : t("JEV disabled")}><Text>{s?.config.live ? t("JEV receives only the entered description and allowed profile cards.") : t("Uses the fallback profile. No paid requests.")}</Text></Callout> : null}
-          {!s?.workspace ? <Text tone="warning">{t("Open a local Orca workspace.")}</Text> : null}
+          {s && !s.workspace ? <Text tone="warning">{t("Open a local Orca workspace.")}</Text> : null}
           <Text muted size="xs">{t("Drafts are saved locally for this workspace. The key field is never saved.")}</Text>
           <Select label={t("Agent")} disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
           <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
@@ -216,8 +228,8 @@ export default function Panel() {
             </Stack>
           </Card> : null}
         </Stack>
-      </Tab>
-      <Tab value="settings" label={t("Settings")}>
+       : null}
+      {read(tab) === 'settings' ?
         <Stack gap="md">
           <Text muted>{t("Drafts are saved locally for this workspace. The key field is never saved.")}</Text>
           <Button variant="ghost" disabled={waiting || read(saving)} onPress={() => { void cancel(); set(task, ''); set(apiKey, ''); clearWorkflowDrafts(); if (s) apply(s, true) }}>{t("Clear drafts")}</Button>
@@ -234,17 +246,17 @@ export default function Panel() {
           {read(keySaved) ? <Text tone="success">{t("Key updated")}</Text> : null}
           <Text muted>{t("The key stays in Orca secret storage. No .env files or agent credentials are read.")}</Text>
         </Stack>
-      </Tab>
-      <Tab value="pi" label="Pi Auto">
+       : null}
+      {read(tab) === 'pi' ?
         <Stack gap="md">
           <Text>{t("The optional Pi extension requests decisions only. Pi retains model execution and authentication.")}</Text>
           <Switch label={t("Local Pi decision service")} checked={!!s?.bridgePath} onChange={v => { void bridge(v) }} />
           {s?.bridgePath ? <Code block>{s.bridgePath}</Code> : null}
           <Text muted>{t("See docs/pi.md for setup and pair verification. This is not a generation proxy or a switch for the native Orca model list.")}</Text>
         </Stack>
-      </Tab>
-      <Tab value="history" label={t("Audit log")}><Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text>{read(journalLoading) ? <Spinner label={t("Working")} /> : read(journalError) ? <Text tone="warning">{t("Unable to load events. Try again.")}</Text> : read(journal) === '[]' ? <Text muted>{t("No events yet")}</Text> : <Stack gap="sm">{(() => { try { return (JSON.parse(read(journal) || '[]') as Record<string, unknown>[]).map((event, i) => <Text key={String(i)}>{typeof event.at === 'number' ? new Date(event.at).toLocaleString() : '—'} · {displayState(String(event.state ?? ''))} · {String(event.profile ?? event.stepId ?? event.agent ?? '—')}</Text>) } catch { return <Text>{t("Unable to load events. Try again.")}</Text> } })()}<Collapsible title={t("Details")}><Code block>{read(journal) || '[]'}</Code></Collapsible></Stack>}<Button variant="ghost" disabled={read(journalLoading)} onPress={loadHistory}>{t("Refresh status")}</Button></Stack></Tab>
-    </Tabs>
+       : null}
+      {read(tab) === 'history' ? <Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text>{read(journalLoading) ? <Spinner label={t("Working")} /> : read(journalError) ? <Text tone="warning">{t("Unable to load events. Try again.")}</Text> : read(journal) === '[]' ? <Text muted>{t("No events yet")}</Text> : <Stack gap="sm">{(() => { try { return (JSON.parse(read(journal) || '[]') as Record<string, unknown>[]).map((event, i) => <Text key={String(i)}>{typeof event.at === 'number' ? new Date(event.at).toLocaleString() : '—'} · {displayState(String(event.state ?? ''))} · {String(event.profile ?? event.stepId ?? event.agent ?? '—')}</Text>) } catch { return <Text>{t("Unable to load events. Try again.")}</Text> } })()}<Collapsible title={t("Details")}><Code block>{read(journal) || '[]'}</Code></Collapsible></Stack>}<Button variant="ghost" disabled={read(journalLoading)} onPress={loadHistory}>{t("Refresh status")}</Button></Stack> : null}
+
     <Card title={t('OpenRouter balance')}>
       <Stack gap="sm">
         {read(balanceLoading) ? <Spinner label={t('Refresh balance')} /> : null}
@@ -258,7 +270,7 @@ export default function Panel() {
       </Stack>
     </Card>
     {s?.config.unlimitedJev ? <Badge tone="warning">{t('Unlimited JEV decisions')}</Badge> : null}
-    <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? 0}. {t('Reserved:')} ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
+    <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? '—'}. {t('Reserved:')} {s ? <>${(s.ledger.reservedMicrousd / 1e6).toFixed(6)}</> : '—'}.</Text>
     <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
   </Stack>
 }

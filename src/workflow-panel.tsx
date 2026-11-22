@@ -28,6 +28,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
   const nextAction: Message = w?.automatic?.state === 'running' && w.automatic.reason !== 'legacy_review' ? 'Waiting for the executor to finish and report checks.' : w?.automatic?.state === 'paused' ? 'Continue automatically' : !w?.approvedHash ? 'Run plan automatically' : currentState === 'submitted' ? 'Reviewed result:' : currentState === 'dispatch_unknown' || locked ? 'The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.' : currentState === 'dispatch_pending' ? 'Dispatch in progress' : currentState === 'planned' ? (!s?.config.execution ? 'Enable execution in Settings.' : 'Launch subtask:') : 'Select agent:'
   const finished = !!w?.analysis && w.analysis.steps.every(step => w.runs[step.id]?.state === 'completed')
   async function perform(fn: () => Promise<Workflow>): Promise<void> {
+    if (read(pending)) return
     set(pending, true)
     try { changed(await fn()) } catch (e) { error(e) } finally { set(pending, false) }
   }
@@ -86,16 +87,17 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
           {!w.analysis && w.coordinator.state === 'shadow' ? <Text muted>{t('Launch the coordinator before reading its analysis.')}</Text> : null}
         </Stack>
       </Collapsible>
-      {automaticPanel(s, action, waiting || locked, openSettings)}
       {w.analysis ? <Stack gap="sm">
         <Text weight="semibold">{w.analysis.summary}</Text>
         <Collapsible title={t("Analysis details")}>
         {w.analysis.assumptions.map((a, i) => <Text key={`a${i}`}>{t("Assumption:")} {a}</Text>)}
-        {w.analysis.questions.map((q, i) => <Text key={`q${i}`} tone="warning">{t("Open question:")} {q}</Text>)}
         {w.analysis.sources.map((source, i) => <Text key={`s${i}`}>{t("Source:")} {source.reference} · {displayState(source.status)}. {source.summary}</Text>)}
         <Text muted>{t("Source reading is reported by the coordinator. Review the analysis before approval. JEV receives only the displayed routing briefs.")}</Text>
         </Collapsible>
         {w.analysis.questions.length > 0 || w.analysis.sources.some(source => source.status !== 'read') ? <Text tone="warning">{t("Resolve open questions and unavailable sources with the coordinator first.")}</Text> : null}
+        {w.analysis.questions.map((q, i) => <Text key={i} tone="warning">{t('Open question:')} {q}</Text>)}
+        {w.analysis.steps.map(step => <Text key={step.id}>{step.title} · {t('Dependencies:')} {step.dependsOn.join(', ') || t('none')} · {t('Acceptance:')} {step.acceptance} · {t('Allowed agents:')} {step.allowedAgents.join(', ')}{step.reviewRequired ? ' · ' + t('Reviewed result:') : ''}</Text>)}
+      {automaticPanel(s, action, waiting || locked, openSettings)}
         {w.automatic?.state !== 'running' ? <Collapsible title={t("Manual controls")}><Button disabled={waiting || !!w.approvedHash || w.analysis.questions.length > 0 || w.analysis.sources.some(source => source.status !== 'read')} onPress={() => action('approve')}>{t("Approve analysis and workflow")}</Button></Collapsible> : null}
         {w.analysis.steps.map(step => {
           const reviewText = read(review)[w.id + ':' + step.id] ?? ''

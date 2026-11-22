@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Unable to load status.": "无法加载状态。",
+  "Finish the active plan or confirm its executor has ended before starting another plan.": "启动其他计划前，请完成当前计划或确认其执行者已结束。",
   "Update standard and deep to Codex 6.2": "将 standard 和 deep 更新到 Codex 6.2",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "准备的执行者指令超过 65536 个 UTF-8 字节。",
   "Read executor report": "读取执行者报告",

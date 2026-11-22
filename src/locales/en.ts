@@ -1,4 +1,6 @@
 export const en = {
+  "Unable to load status.": "Unable to load status.",
+  "Finish the active plan or confirm its executor has ended before starting another plan.": "Finish the active plan or confirm its executor has ended before starting another plan.",
   "Update standard and deep to Codex 6.2": "Update standard and deep to Codex 6.2",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "The prepared executor prompt exceeds 65536 UTF-8 bytes.",
   "Read executor report": "Read executor report",

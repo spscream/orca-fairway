@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { open } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { record, requireThat, RouterError, validateProfile } from './config.ts'
@@ -13,7 +14,8 @@ export const runFile: Runner = (file, args, options) => new Promise((resolve, re
   })
 })
 export function childEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([k]) => !['OPENROUTER_API_KEY', 'OPENROUTER_TOKEN', 'FAIRWAY_BRIDGE_TOKEN'].includes(k)))
+  const allowed = /^(PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|LANG|LC_[A-Z_]+|SYSTEMROOT|WINDIR|COMSPEC|PATHEXT|APPDATA|LOCALAPPDATA|USERPROFILE|PROGRAMFILES(?:\(X86\))?|XDG_(?:CONFIG|DATA|CACHE|STATE|RUNTIME)_HOME|XDG_RUNTIME_DIR|CODEX_HOME|ORCA_CLI_COMMAND|ORCA_DEV_REPO_ROOT)$/i
+  return Object.fromEntries(Object.entries(env).filter(([name]) => allowed.test(name)))
 }
 export function orcaExecutable(env: NodeJS.ProcessEnv, platform = process.platform): string {
   return env.ORCA_CLI_COMMAND || (env.ORCA_DEV_REPO_ROOT ? 'orca-dev' : platform === 'linux' ? 'orca-ide' : 'orca')
@@ -41,9 +43,21 @@ function codexPair(catalog: unknown, profile: Profile): boolean {
   return record(model) && model.visibility === 'list' && Array.isArray(model.supported_reasoning_levels) &&
     (profile.effort === null || model.supported_reasoning_levels.some((x: unknown) => record(x) && x.effort === profile.effort))
 }
+async function readModelCatalog(path: string): Promise<string> {
+  const limit = 2 * 1024 * 1024
+  const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK)
+  try {
+    const stat = await file.stat()
+    requireThat(stat.isFile() && stat.size <= limit, 'invalid_codex_catalog')
+    const buffer = Buffer.alloc(limit + 1)
+    const { bytesRead } = await file.read(buffer)
+    requireThat(bytesRead <= limit, 'invalid_codex_catalog')
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, bytesRead))
+  } finally { await file.close() }
+}
 export class NativeRuntime implements Runtime {
   constructor(private readonly env: NodeJS.ProcessEnv = process.env, private readonly run: Runner = runFile,
-    private readonly read: (path: string) => Promise<string> = p => readFile(p, 'utf8')) {}
+    private readonly read: (path: string) => Promise<string> = readModelCatalog) {}
   async verify(profile: Profile): Promise<Evidence> {
     if (profile.agent === 'pi') return { verified: profile.operatorConfirmed, source: profile.operatorConfirmed ? 'operator_confirmed_pi_pair' : 'pi_pair_requires_confirmation' }
     if (profile.agent === 'cursor') {
@@ -68,7 +82,9 @@ export class NativeRuntime implements Runtime {
     // Orca launches its selected managed account, not necessarily the system Codex home.
     const accounts = await this.run(orcaExecutable(this.env), ['account', 'list', '--agent', 'codex', '--json'], { env: childEnvironment(this.env), timeout: 5000 })
     const path = join(codexMetadataHome(JSON.parse(accounts.stdout), this.env), 'models_cache.json')
-    const cache: unknown = JSON.parse(await this.read(path))
+    const raw = await this.read(path)
+    requireThat(Buffer.byteLength(raw) <= 2 * 1024 * 1024, 'invalid_codex_catalog')
+    const cache = parseJson(raw)
     requireThat(record(cache) && Array.isArray(cache.models), 'invalid_codex_catalog')
     const fetched = typeof cache.fetched_at === 'string' ? Date.parse(cache.fetched_at) : NaN
     if (!Number.isFinite(fetched) || fetched > Date.now() + 60_000 || Date.now() - fetched > 7 * 86400_000) return { verified: false, source: 'stale_codex_catalog' }

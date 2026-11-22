@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Unable to load status.": "Não foi possível carregar o status.",
+  "Finish the active plan or confirm its executor has ended before starting another plan.": "Conclua o plano ativo ou confirme o fim da execução antes de iniciar outro plano.",
   "Update standard and deep to Codex 6.2": "Atualizar standard e deep para Codex 6.2",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "A instrução preparada para o executor excede 65536 bytes UTF-8.",
   "Read executor report": "Ler relatório do executor",

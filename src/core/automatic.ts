@@ -9,6 +9,7 @@ interface Active { id: string; workspace: Workspace }
 export class Automatic {
   private tail: Promise<unknown> = Promise.resolve()
   private stopped = false
+  private target: Active | null = null
   private controller: AbortController | null = null
   private planId: string | null = null
   constructor(private store: Store, private flows: Workflows, private engine: Engine, private runtime: Runtime, private now = Date.now) {}
@@ -19,14 +20,16 @@ export class Automatic {
     requireThat(record(active) && typeof active.id === 'string' && /^[0-9a-f-]{36}$/.test(active.id) && record(active.workspace) && active.workspace.host === 'local' && typeof active.workspace.id === 'string' && typeof active.workspace.path === 'string', 'invalid_automatic_state')
     return active as unknown as Active
   }
-  private async mark(w: Workflow, state: AutomaticState['state'], reason: AutomaticReason | null): Promise<Workflow> {
+  private async mark(w: Workflow, state: AutomaticState['state'], reason: AutomaticReason | null, failureStage?: AutomaticState['failureStage']): Promise<Workflow> {
     requireThat(w.automatic, 'invalid_automatic_state')
-    return this.flows.automatic(w.id, w.workspace, { ...w.automatic, state, reason })
+    const { failureStage: _, ...previous } = w.automatic
+    return this.flows.automatic(w.id, w.workspace, { ...previous, state, reason, ...(failureStage ? { failureStage } : {}) })
   }
   async recover(): Promise<void> {
     // Loading a plugin never starts an executor, even with persisted authorization.
     const active = await this.active()
     if (!active) return
+    this.target = active
     const w = await this.flows.get(active.id, active.workspace)
     if (!w.cancelled && w.automatic?.state === 'running') await this.mark(w, 'paused', 'interrupted')
   }
@@ -36,6 +39,13 @@ export class Automatic {
       if (previous && previous.id !== id) {
         const old = await this.flows.get(previous.id, previous.workspace)
         requireThat(old.cancelled || old.automatic?.state !== 'running', 'automatic_workflow_active')
+        for (const run of Object.values(old.runs)) {
+          requireThat(!['dispatch_pending', 'dispatch_unknown'].includes(run.state), 'automatic_workflow_active')
+          if (run.state === 'submitted') {
+            const observed = run.plan && await this.runtime.observe?.(run.plan, old.workspace)
+            requireThat(observed === 'done', 'automatic_workflow_active')
+          }
+        }
       }
       const config = await this.engine.config(); requireThat(config.execution, 'execution_disabled')
       let w = await this.flows.get(id, workspace)
@@ -47,13 +57,15 @@ export class Automatic {
       const remaining = w.analysis!.steps.filter(s => w.runs[s.id]?.state !== 'completed')
       requireThat(remaining.length > 0, 'workflow_not_ready')
       this.stopped = false
-      await this.store.set('automaticActive', { id, workspace })
+      const target = { id, workspace }
+      await this.store.set('automaticActive', target)
+      this.target = target
       w = await this.flows.automatic(id, workspace, { state: 'running', reason: null, configHash: digest(config), approvedHash: w.approvedHash!, expiresAt: this.now() + 2 * 60 * 60_000, dispatches: w.automatic?.dispatches ?? 0, limit: w.analysis!.steps.length })
       return w
     })
   }
   async pauseFor(id: string, workspace: Workspace): Promise<Workflow> {
-    const active = await this.active()
+    const active = this.target ?? await this.active()
     requireThat(active?.id === id && digest(active.workspace) === digest(workspace), 'workflow_workspace_changed')
     const paused = await this.pause(); requireThat(paused, 'workflow_not_ready'); return paused
   }
@@ -77,6 +89,7 @@ export class Automatic {
       if (!config.execution) return this.mark(w, 'paused', 'execution_disabled')
       if (digest(config) !== a.configHash || w.approvedHash !== a.approvedHash || digest(w.analysis) !== a.approvedHash) return this.mark(w, 'paused', 'settings_changed')
       if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
+      let stage: NonNullable<AutomaticState['failureStage']> = 'prepare'
       try {
         const entries = Object.entries(w.runs)
         if (entries.some(([, run]) => ['dispatch_unknown', 'dispatch_failed', 'dispatch_pending'].includes(run.state))) return this.mark(w, 'paused', 'dispatch_unknown')
@@ -87,18 +100,21 @@ export class Automatic {
           // Existing manually launched work has no completion contract; allow one manual review.
           if (!run.result) return a.reason === 'legacy_review' ? w : this.mark(w, 'running', 'legacy_review')
           const elapsed = this.now() - (run.startedAt ?? 0)
-          if (elapsed >= 30 * 60_000) return this.mark(w, 'paused', 'step_timeout')
+          stage = 'observe'
           const observed = run.plan && this.runtime.observe ? await this.runtime.observe(run.plan, w.workspace) : 'unknown'
           if (this.stopped) return w
+          if (observed !== 'done' && elapsed >= 30 * 60_000) return this.mark(w, 'paused', 'step_timeout')
           if (observed === 'blocked' && elapsed > 15000) return this.mark(w, 'paused', 'agent_blocked')
           if (observed === 'unknown' && elapsed > 120000) return this.mark(w, 'paused', 'monitor_unavailable')
           if (observed !== 'done') return w
           // Read only after turn end: a partially written or provisional report is not a failure yet.
+          stage = 'report'
           let result
           try { result = await this.flows.result(w.id, stepId, w.workspace) }
           catch { return this.mark(w, 'paused', 'result_invalid') }
           if (result && (result.status !== 'completed' || result.questions.length || result.checks.some(c => c.status !== 'passed'))) return this.mark(w, 'paused', result.questions.length || result.status === 'blocked' ? 'agent_blocked' : 'checks_failed')
           if (!result) return elapsed <= 20000 ? w : this.mark(w, 'paused', 'result_missing')
+          if (w.analysis!.steps.find(step => step.id === stepId)?.reviewRequired) return this.mark(w, 'paused', 'review_required')
           return this.flows.review(w.id, stepId, result.summary, w.workspace, true)
         }
         if (w.analysis!.steps.every(s => w.runs[s.id]?.state === 'completed')) return this.mark(w, 'completed', null)
@@ -124,12 +140,25 @@ export class Automatic {
         if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
         const latest = await this.engine.config()
         if (digest(latest) !== a.configHash || !latest.execution) return this.mark(w, 'paused', 'settings_changed')
+        stage = 'dispatch'
         w = await this.flows.automatic(w.id, w.workspace, { ...w.automatic!, reason: null, dispatches: a.dispatches + 1 })
-        if (this.stopped) return w
-        w = await this.flows.launch(w.id, step.id, w.workspace, true)
+        try {
+          w = await this.flows.launch(w.id, step.id, w.workspace, true, () => {
+            requireThat(!this.stopped && !this.controller?.signal.aborted, 'dispatch_paused')
+            requireThat(this.now() < a.expiresAt, 'dispatch_expired')
+          })
+        } catch (error) {
+          if (!(error instanceof RouterError)) throw error
+          const current = await this.flows.get(w.id, w.workspace)
+          const cancelledBeforeDispatch = this.stopped && current.runs[step.id]?.state === 'planned'
+          if (!cancelledBeforeDispatch && !['dispatch_paused', 'dispatch_expired'].includes(error.code)) throw error
+          return this.flows.automatic(w.id, w.workspace, {
+            ...current.automatic!, state: 'paused', reason: error.code === 'dispatch_expired' ? 'expired' : 'paused', dispatches: a.dispatches
+          })
+        }
         if (w.runs[step.id]!.state !== 'submitted') return this.mark(w, 'paused', 'dispatch_unknown')
         return w
-      } catch (error) { return this.mark(await this.flows.get(w.id, w.workspace), 'paused', error instanceof RouterError && error.code === 'workflow_prompt_too_large' ? 'prompt_too_large' : 'operation_failed') }
+      } catch (error) { return this.mark(await this.flows.get(w.id, w.workspace), 'paused', error instanceof RouterError && error.code === 'workflow_prompt_too_large' ? 'prompt_too_large' : 'operation_failed', stage) }
       finally { this.controller = null; this.planId = null }
     })
   }

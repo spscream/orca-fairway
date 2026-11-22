@@ -533,3 +533,37 @@ test('Codex 6.2 upgrade changes only the exact legacy standard and deep profiles
     assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('initial status failure ends loading and a successful retry clears its warning', async () => {
+  let reads = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => {
+      if (++reads === 1) throw new Error('synthetic failure')
+      return status()
+    },
+  } })
+  const view = await mount(panel, { host })
+  try {
+    let page = JSON.stringify(view.tree())
+    assert.ok(page.includes('Unable to load status.'))
+    assert.equal(page.includes('"type":"Spinner"'), false)
+    assert.equal(page.includes('Open a local Orca workspace.'), false)
+    await view.press({ text: 'Refresh status' })
+    page = JSON.stringify(view.tree())
+    assert.equal(page.includes('Unable to load status.'), false)
+    assert.ok(page.includes('Shadow mode'))
+  } finally { await view.unmount() }
+})
+
+test('automatic approval follows acceptance criteria and separate billing disclosure', async () => {
+  const workflow = auditedWorkflow('completed')
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(true), workflow }) } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    const page = JSON.stringify(view.tree())
+    const approval = page.lastIndexOf('Run plan automatically')
+    const criteria = page.indexOf('Acceptance:')
+    const billing = page.indexOf('executor usage is billed separately')
+    assert.ok(criteria >= 0 && billing > criteria && approval > billing)
+  } finally { await view.unmount() }
+})

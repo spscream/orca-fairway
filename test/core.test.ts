@@ -280,3 +280,11 @@ test('workflow prompt bounds and purpose guards do not widen direct task or JEV 
   await assert.rejects(f.engine.plan('x'.repeat(5000), 'codex', workspace, undefined, undefined, options), /invalid_workflow_plan/)
   assert.equal(f.traffic.length, 0); assert.equal(f.calls.length, 0); assert.equal((await f.engine.ledger()).calls, 0)
 })
+
+test('changing a key revokes a prepared launch without hashing or logging its value', async () => {
+  const f = fixture({ execution: true }), p = await f.engine.plan('Synthetic task', 'codex', workspace)
+  await f.engine.changeKey(async () => {})
+  await assert.rejects(f.engine.launch(p.id, 'Synthetic task', workspace), /plan_changed/)
+  assert.equal(await f.engine.isCurrent(p, f.config), false)
+  assert.equal(f.calls.length, 0)
+})

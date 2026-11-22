@@ -3,7 +3,8 @@ import type { JsonValue } from 'orca/host'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseJson } from './core/json.ts'
-import { digest, Engine } from './core/engine.ts'
+import { withDiskLedger } from './core/ledger-store.ts'
+import { Engine } from './core/engine.ts'
 import { NativeRuntime } from './core/runtime.ts'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig } from './core/config.ts'
 import { preferences, withPreferences } from './core/preferences.ts'
@@ -16,7 +17,7 @@ import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts
 import type { Status } from './protocol.ts'
 let stop: (() => Promise<void>) | null = null
 export async function deactivate(): Promise<void> { await stop?.(); stop = null }
-export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport, artifacts: Artifacts = new PrivateArtifacts(join(homedir(), '.config', 'fairway-for-orca', 'workflows')), balanceRequest?: BalanceTransport) {
+export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport, artifacts: Artifacts = new PrivateArtifacts(join(homedir(), '.config', 'fairway-for-orca', 'workflows')), balanceRequest?: BalanceTransport, ledgerDirectory?: string) {
   return async function activate(orca: OrcaWorkerApi): Promise<void> {
     // Preserve 0.1.0 configuration when adopting Orca's native settings.
     if (!await orca.storage.get('nativeSettingsMigrated')) {
@@ -24,7 +25,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       if (legacy) for (const [key, value] of Object.entries(preferences(validateConfig(legacy)))) await orca.settings.set(key, value)
       await orca.storage.set('nativeSettingsMigrated', true)
     }
-    const store: Store = {
+    const hostStore: Store = {
       get: async key => key === 'config'
         ? withPreferences(validateConfig((await orca.storage.get(key)) ?? DEFAULT_CONFIG), await orca.settings.get())
         : orca.storage.get(key),
@@ -33,6 +34,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
         await orca.storage.set(key, value as JsonValue)
       }
     }
+    const store = ledgerDirectory ? withDiskLedger(hostStore, ledgerDirectory) : hostStore
     const engine = new Engine(store, runtime, () => orca.secrets.get('openrouter'), transport)
     const workflows = new Workflows(store, engine, artifacts)
     const automatic = new Automatic(store, workflows, engine, runtime)
@@ -66,7 +68,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     const status = async (): Promise<Status> => {
       const w = await workspace()
       const config = await engine.config(), lastPlan = (await store.get('lastPlan') as Plan | null) ?? null
-      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null, balance: balances.cached() }
+      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan && await engine.isCurrent(lastPlan, config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null, balance: balances.cached() }
     }
     // Errors expose only fixed codes, never exception strings, task text or child output.
     const safe = <T, R>(action: (input: T) => Promise<R>) => async (input: T): Promise<R> => {
@@ -108,10 +110,10 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }))
     orca.panels.handle('fairway.key', safe(async ({ key }) => {
       requireThat(typeof key === 'string' && (key === '' || /^[\x21-\x7e]{16,4096}$/.test(key)), 'invalid_key')
-      await automatic.pause('settings_changed')
+      const pause = automatic.pause('settings_changed')
       balances.invalidate()
-      if (key) await orca.secrets.set('openrouter', key); else await orca.secrets.delete('openrouter')
-      engine.cancelAll()
+      await Promise.all([pause, engine.changeKey(() => key ? orca.secrets.set('openrouter', key) : orca.secrets.delete('openrouter'))])
+      await store.set('lastPlan', null)
       return { present: !!key }
     }))
     orca.panels.handle('fairway.plan', safe(async ({ id, task, agent }) => {
@@ -139,4 +141,4 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     })
   }
 }
-export default createWorker()
+export default createWorker(undefined, undefined, undefined, undefined, join(homedir(), '.config', 'fairway-for-orca', 'accounting'))

@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Unable to load status.": "状態を読み込めませんでした。",
+  "Finish the active plan or confirm its executor has ended before starting another plan.": "別の計画を開始する前に、現在の計画を完了するか、実行担当の終了を確認してください。",
   "Update standard and deep to Codex 6.2": "standard と deep を Codex 6.2 に更新",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "準備された実行担当への指示が65536 UTF-8バイトを超えています。",
   "Read executor report": "実行担当のレポートを読む",

@@ -19,3 +19,5 @@ Coordinator and executor instructions prohibit creating their own agents. This i
 Accounting is local. Removing plugin data, using independent installations, or making OpenRouter requests elsewhere changes its scope. It neither controls the whole account nor limits coordinator/executor costs. Workflow artifacts have no automatic deletion policy. On Windows, protect private directories and files using OS ACLs.
 
 To report a vulnerability, use private reporting in the repository Security tab if available. Do not post real keys, authentication files, private tasks, or logs in public issues.
+
+Fairway выполняется под учётной записью пользователя. Артефакты и локальный учёт защищены прежде всего от случайной подмены и конкурентной записи. Процессы с доступом той же учётной записи могут менять данные, доступные Fairway, и видеть аргументы запущенных процессов. Разрешённые поля окружения включают пути и служебные настройки для локальных CLI. Самоотчёты и ссылка на источник требуют проверки оператором там, где важна независимость. Краткое описание для JEV передаётся как введено, поэтому конфиденциальные сведения следует исключать до подбора.

@@ -14,6 +14,7 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
   const recordedCause = a?.reason === 'routing_failed' ? storedRoutingFailure(w) : a?.reason
   const cause = (recordedCause === 'budget_exhausted' && allowance.sufficient) || (recordedCause === 'checks_failed' && !hasSubmitted) ? 'paused' : recordedCause
   const messages: Record<AutomaticReason, Message> = {
+    review_required: 'Review the currently dispatched subtask first.',
     prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
     budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     missing_key: 'Save an OpenRouter key in Settings.', routing_timeout: 'Request timed out',
@@ -39,13 +40,15 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
       {Object.values(w.runs).some(run => run.state === 'submitted' && run.plan?.reason === 'low_confidence_ranked') ? <Text tone="warning">{t('Low JEV confidence. The leading choice meets the fallback level.')}</Text> : null}
       {!running && budgetBlocked ? <Text tone="warning">{t(messages.budget_exhausted)}</Text> : null}
       {!running && keyBlocked && cause !== 'missing_key' ? <Text tone="warning">{t('Save an OpenRouter key in Settings.')}</Text> : null}
+      {a?.failureStage ? <Code>{a.failureStage} / {a.reason} / {w.id}</Code> : null}
       {cause && !(budgetBlocked && cause === 'budget_exhausted') ? <Text tone="warning">{t(messages[cause])}</Text> : null}
       {!complete ? <>
         {!running ? <Text muted>{t('Running approves this analysis and authorizes the remaining steps in this workspace.')}</Text> : null}
         <Text muted>{t('Executor reports are accepted automatically after Orca confirms completion; this is not independent verification.')}</Text>
         {s?.config.live ? <Stack gap="xs"><Text>{t('JEV attempts:')} {s.ledger.calls} / {s.config.unlimitedJev ? t('Unlimited') : s.config.maxCalls}</Text><Text>{t('Reserved:')} ${(s.ledger.reservedMicrousd / 1e6).toFixed(6)} / {s.config.unlimitedJev ? t('Unlimited') : '$' + (s.config.budgetMicrousd / 1e6).toFixed(6)}</Text><Text>{t('Decisions needed for remaining steps:')} {allowance.needed}; {t('Available decisions:')} {s.config.unlimitedJev ? t('Unlimited') : allowance.affordable}</Text></Stack> : null}
-        <Collapsible title={t("Details")}><Text>{t('One JEV decision reserves:')} ${(RESERVATION_MICROUSD / 1e6).toFixed(6)}</Text><Text muted size="xs">{t('Up to 8 launches, 30 minutes per step, 2 hours total. JEV uses the configured budget; executor usage is billed separately.')}</Text><Code block>{w.workspace.path}</Code></Collapsible>
-        {running ? <Button onPress={() => action('pauseAutomatic')}>{t('Pause automatic execution')}</Button> : <Button disabled={waiting || !s?.config.execution || blocked || budgetBlocked || keyBlocked} onPress={() => action('startAutomatic')}>{a ? t('Continue automatically') : t('Run plan automatically')}</Button>}
+        <Collapsible title={t("Details")}><Text>{t('One JEV decision reserves:')} ${(RESERVATION_MICROUSD / 1e6).toFixed(6)}</Text><Code block>{w.workspace.path}</Code></Collapsible>
+        <Text muted size="xs">{t('Up to 8 launches, 30 minutes per step, 2 hours total. JEV uses the configured budget; executor usage is billed separately.')}</Text>
+        {running ? <Button disabled={waiting} onPress={() => action('pauseAutomatic')}>{t('Pause automatic execution')}</Button> : <Button disabled={waiting || (cause === 'review_required' && hasSubmitted) || !s?.config.execution || blocked || budgetBlocked || keyBlocked} onPress={() => action('startAutomatic')}>{a ? t('Continue automatically') : t('Run plan automatically')}</Button>}
         {!running && openSettings ? <Button variant="ghost" onPress={openSettings}>{t('Settings')}</Button> : null}
         <Text muted size="xs">{t('Automatic limits stop new launches; running agents must be stopped in Orca.')}</Text>
       </> : null}

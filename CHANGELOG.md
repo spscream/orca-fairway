@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5
+
+- Check pause immediately before dispatch and guard the automatic slot until the preceding executor finishes.
+- Share JEV accounting through a locked local ledger, recover late reports, and revoke prepared decisions after key changes.
+- Show plan scope and billing before approval. Add optional operator review, compact navigation, and safer input handling.
+
 ## 0.7.0
 
 - Add explicit unlimited JEV decisions: aggregate attempt/reserve caps are optional; accounting and bounded per-request pricing remain enforced.

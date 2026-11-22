@@ -1,5 +1,7 @@
 import type { Message } from './en.ts'
 export default {
+  "Unable to load status.": "상태를 불러오지 못했습니다.",
+  "Finish the active plan or confirm its executor has ended before starting another plan.": "다른 계획을 시작하기 전에 활성 계획을 완료하거나 실행 종료를 확인하세요.",
   "Update standard and deep to Codex 6.2": "standard 및 deep을 Codex 6.2로 업데이트",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "준비된 실행자 지시가 UTF-8 기준 65536바이트를 초과합니다.",
   "Read executor report": "실행자 보고서 읽기",

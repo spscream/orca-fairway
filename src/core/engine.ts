@@ -17,20 +17,41 @@ async function interruptible<T>(action: () => Promise<T>, signal: AbortSignal): 
     })])
   } finally { signal.removeEventListener('abort', listener) }
 }
+const storeQueues = new WeakMap<Store, Promise<unknown>>()
 export class Engine {
-  private tail: Promise<unknown> = Promise.resolve()
+  private keyGeneration = 0
   private active = new Map<string, AbortController>()
   constructor(private readonly store: Store, private readonly runtime: Runtime,
     private readonly getKey: () => Promise<string | null>, private readonly transport: Transport = httpTransport,
     private readonly timeoutMs = 8000) {}
   private serial<T>(action: () => Promise<T>): Promise<T> {
-    const next = this.tail.then(action, action); this.tail = next.catch(() => {}); return next
+    const run = () => this.store.exclusive ? this.store.exclusive(action) : action()
+    const tail = storeQueues.get(this.store) ?? Promise.resolve()
+    const next = tail.then(run, run)
+    storeQueues.set(this.store, next.catch(() => {}))
+    return next
   }
   async config(): Promise<Config> { return validateConfig((await this.store.get('config')) ?? DEFAULT_CONFIG) }
   async saveConfig(value: unknown): Promise<Config> {
     const c = validateConfig(value)
     for (const controller of this.active.values()) controller.abort()
     await this.serial(() => this.store.set('config', c)); return c
+  }
+  private async keyRevision(): Promise<string | null> {
+    const revision = await this.store.get('keyRevision')
+    requireThat(revision === null || validPlanId(revision), 'invalid_key_revision')
+    return revision as string | null
+  }
+  async changeKey(write: () => Promise<void>): Promise<void> {
+    this.keyGeneration++
+    this.cancelAll()
+    await this.serial(async () => {
+      await this.store.set('keyRevision', randomUUID())
+      await write()
+    })
+  }
+  async isCurrent(plan: Plan, config: Config): Promise<boolean> {
+    return plan.configHash === digest(config) && (plan.keyRevision ?? null) === await this.keyRevision()
   }
   async ledger(): Promise<Ledger> {
     const l = (await this.store.get('ledger')) ?? { calls: 0, reservedMicrousd: 0 }
@@ -39,6 +60,7 @@ export class Engine {
   }
   private async reserve(config: Config): Promise<void> {
     await this.serial(async () => {
+      requireThat(digest(config) === digest(await this.config()), 'plan_changed')
       const l = await this.ledger()
       requireThat(config.unlimitedJev || (l.calls < config.maxCalls && l.reservedMicrousd + RESERVATION_MICROUSD <= config.budgetMicrousd), 'budget_exhausted')
       requireThat(Number.isSafeInteger(l.calls + 1) && Number.isSafeInteger(l.reservedMicrousd + RESERVATION_MICROUSD), 'invalid_ledger')
@@ -73,6 +95,7 @@ export class Engine {
     if (options.routingTask !== undefined) validateTask(options.routingTask)
     requireThat(validPlanId(requestId), 'invalid_request_id')
     requireThat(workspace.host === 'local' && typeof workspace.path === 'string' && workspace.path.length > 0 && typeof workspace.id === 'string', 'invalid_workspace')
+    const keyGeneration = this.keyGeneration, keyRevision = await this.keyRevision()
     const c = await this.config()
     if (options.profileId !== undefined) requireThat(typeof options.profileId === 'string' && c.profiles.some(p => p.id === options.profileId), 'invalid_profile')
     const candidates = c.profiles.filter(p => (agent === 'auto' || p.agent === agent) && (!options.allowedAgents || options.allowedAgents.includes(p.agent)) && (!options.profileId || p.id === options.profileId))
@@ -112,12 +135,12 @@ export class Engine {
       }
       // A changed configuration or an aborted request can never produce an executable late result.
       const evidence = await this.runtime.verify(profile).catch(() => ({ verified: false, source: 'verification_unavailable' }))
-      const changed = digest(await this.config()) !== digest(c)
+      const changed = digest(await this.config()) !== digest(c) || keyRevision !== await this.keyRevision() || keyGeneration !== this.keyGeneration
       const cancelled = controller.signal.aborted || externalSignal?.aborted || changed
       const plan: Plan = {
         ...(options.coordinator ? { purpose: 'coordinator' as const } : {}),
         ...(options.workflow ? { purpose: 'workflow' as const } : {}),
-        id: requestId, profile, reason: cancelled ? 'cancelled' : reason, confidence,
+        id: requestId, keyRevision, profile, reason: cancelled ? 'cancelled' : reason, confidence,
         createdAt: Date.now(), expiresAt: Date.now() + 10 * 60_000, configHash: digest(c), taskHash: digest(task), workspaceHash: digest(workspace),
         evidence, costUsd, reservedMicrousd, state: cancelled ? 'cancelled' : 'shadow', observedModel: null, observedEffort: null
       }
@@ -129,11 +152,12 @@ export class Engine {
       return plan
     } finally { this.active.delete(requestId) }
   }
-  async workflowEvent(flowId: string, state: string, stepId?: string): Promise<void> {
-    await this.audit({ flowId, state, ...(stepId ? { stepId } : {}) })
+  async workflowEvent(flowId: string, state: string, stepId?: string, diagnostic?: { reason: string | null; stage?: string }): Promise<void> {
+    await this.audit({ flowId, state, ...(stepId ? { stepId } : {}), ...diagnostic })
   }
-  async launch(id: string, task: string, workspace: Workspace): Promise<Plan> {
+  async launch(id: string, task: string, workspace: Workspace, beforeDispatch?: () => void): Promise<Plan> {
     requireThat(validPlanId(id), 'invalid_plan')
+    const keyGeneration = this.keyGeneration
     const p = await this.store.get('plan:' + id)
     requireThat(record(p) && p.id === id, 'invalid_plan')
     const plan = p as unknown as Plan, config = await this.config()
@@ -142,11 +166,11 @@ export class Engine {
     validateProfile(plan.profile)
     requireThat(config.profiles.some(profile => digest(profile) === digest(plan.profile)), 'profile_changed')
     requireThat(plan.state === 'shadow' && plan.expiresAt > Date.now(), 'plan_not_launchable')
-    requireThat(plan.configHash === digest(config) && plan.taskHash === digest(task) && plan.workspaceHash === digest(workspace), 'plan_changed')
+    requireThat(await this.isCurrent(plan, config) && plan.taskHash === digest(task) && plan.workspaceHash === digest(workspace), 'plan_changed')
     requireThat(plan.reason !== 'cancelled' && (await this.runtime.verify(plan.profile)).verified, 'profile_unverified')
     await this.serial(async () => {
       const latest = await this.config()
-      requireThat(latest.execution && digest(latest) === plan.configHash, 'plan_changed')
+      requireThat(latest.execution && await this.isCurrent(plan, latest), 'plan_changed')
       const current = await this.store.get('plan:' + id)
       requireThat(record(current) && current.state === 'shadow', 'plan_already_consumed')
       plan.state = 'dispatch_pending'
@@ -154,6 +178,18 @@ export class Engine {
     })
     // Persisted intent + audit before starting a process; an unknown outcome is never retried.
     await this.audit({ id, state: 'dispatch_pending', profile: plan.profile.id })
+    const latest = await this.config()
+    const current = await this.isCurrent(plan, latest)
+    try {
+      requireThat(latest.execution && current && keyGeneration === this.keyGeneration, 'plan_changed')
+      beforeDispatch?.()
+    } catch (error) {
+      // Dispatch has not reached the runtime. Restore the intent for an explicit retry.
+      plan.state = 'shadow'
+      await this.serial(() => this.store.set('plan:' + id, plan))
+      throw error
+    }
+    // No await between the cancellation check and handing the request to Orca.
     try {
       const result = await this.runtime.launch(plan.profile, task, workspace)
       let receipt: unknown

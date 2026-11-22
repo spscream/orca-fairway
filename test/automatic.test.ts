@@ -105,7 +105,7 @@ test('pause during metadata verification prevents dispatch', async () => {
   f.runtime.verify = async () => { await new Promise<void>(r => { release = r }); return { verified: true, source: 'synthetic' } }
   const ticking = f.automatic.tick()
   while (!release) await new Promise(r => setImmediate(r))
-  const pausing = f.automatic.pause(); release(); await ticking; await pausing
+  const pausing = f.automatic.pauseFor(id, workspace); release(); await ticking; await pausing
   assert.equal(f.launches, 0); assert.equal((await f.flows.get(id, workspace)).automatic?.state, 'paused')
 })
 test('limits, missing reports and unknown monitoring never infer a successful result', async () => {
@@ -263,4 +263,67 @@ test('an oversized prepared prompt pauses with a precise reason before a routing
   const w = (await f.automatic.tick())!
   assert.equal(w.automatic!.state, 'paused'); assert.equal(w.automatic!.reason, 'prompt_too_large')
   assert.equal(f.launches, 0); assert.equal(f.decisions, 0)
+})
+
+test('a paused graph holds the automatic slot until Orca confirms the outstanding executor ended', async () => {
+  const f = fixture(), id = await f.create()
+  await f.automatic.start(id, workspace)
+  await f.automatic.tick()
+  await f.automatic.pause()
+  const second = { ...workspace, id: 'second', path: '/synthetic-second' }
+  const other = await f.flows.create('Synthetic second task', f.config.fallback, second)
+  await f.flows.read(other.id, second)
+  await assert.rejects(f.automatic.start(other.id, second), /automatic_workflow_active/)
+  assert.equal(f.launches, 1)
+  f.observed = 'done'
+  await f.automatic.start(other.id, second)
+  assert.equal((await f.automatic.active())?.id, other.id)
+})
+
+test('pause during the final intent write prevents launch and preserves the dispatch allowance', async () => {
+  const f = fixture(), id = await f.create()
+  await f.automatic.start(id, workspace)
+  const write = f.store.set
+  let pausing: Promise<Workflow | null> | undefined
+  f.store.set = async (key, value) => {
+    await write(key, value)
+    if (key.startsWith('plan:') && (value as { state: string }).state === 'dispatch_pending') pausing = f.automatic.pauseFor(id, workspace)
+  }
+  await f.automatic.tick()
+  await pausing
+  const flow = await f.flows.get(id, workspace)
+  assert.equal(flow.runs.first!.state, 'planned')
+  assert.equal(flow.automatic?.state, 'paused')
+  assert.equal(flow.automatic?.dispatches, 0)
+  assert.equal(f.launches, 0)
+})
+
+test('continuation accepts a late completed result without rerunning the timed-out step', async () => {
+  const f = fixture(), id = await f.create()
+  await f.automatic.start(id, workspace)
+  await f.automatic.tick()
+  f.advance(31 * 60_000)
+  assert.equal((await f.automatic.tick())?.automatic?.reason, 'step_timeout')
+  await f.report(id)
+  f.observed = 'done'
+  await f.automatic.start(id, workspace)
+  assert.equal((await f.automatic.tick())?.runs.first!.state, 'completed')
+  assert.equal(f.launches, 1)
+})
+
+test('an explicitly reviewable step requires confirmation after verified completion', async () => {
+  const f = fixture(), id = await f.create()
+  const flow = await f.flows.get(id, workspace)
+  flow.analysis!.steps[0]!.reviewRequired = true
+  await f.store.set('workflow:' + id, flow)
+  await f.automatic.start(id, workspace)
+  await f.automatic.tick()
+  await f.report(id)
+  await f.automatic.pause()
+  await assert.rejects(f.flows.review(id, 'first', 'Synthetic early review', workspace), /step_not_reviewable/)
+  await f.automatic.start(id, workspace)
+  f.observed = 'done'
+  assert.equal((await f.automatic.tick())?.automatic?.reason, 'review_required')
+  assert.equal((await f.flows.review(id, 'first', 'Synthetic independent evidence', workspace)).runs.first?.state, 'completed')
+  assert.equal(f.launches, 1)
 })
