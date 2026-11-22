@@ -255,7 +255,9 @@ export class Workflows {
       const w = await this.get(id, workspace), run = w.runs[stepId]
       requireThat(automatic || w.automatic?.state !== 'running' || !run?.result, 'automatic_running')
       requireThat(!w.cancelled && run?.state === 'submitted', 'step_not_reviewable')
-      run.review = review; run.state = 'completed'; await this.engine.workflowEvent(id, 'step_reviewed', stepId); return this.save(w)
+      run.review = review; run.state = 'completed'
+      if (!automatic && w.automatic?.state === 'paused' && w.automatic.reason === 'checks_failed') w.automatic.reason = 'paused'
+      await this.engine.workflowEvent(id, 'step_reviewed', stepId); return this.save(w)
     })
   }
   async cancel(id: string, workspace: Workspace): Promise<Workflow> {

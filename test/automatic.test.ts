@@ -233,6 +233,7 @@ test('legacy failed audit reports remain failed; explicit operator review preser
   await f.flows.review(id, 'first', 'Completed audit; unresolved product findings remain in its report.', workspace)
   const w = await f.flows.get(id, workspace)
   assert.equal(w.runs.first!.state, 'completed'); assert.equal(w.runs.first!.outcome!.status, 'failed')
+  assert.equal(w.automatic!.state, 'paused'); assert.equal(w.automatic!.reason, 'paused')
   assert.equal(JSON.stringify(await f.flows.result(id, 'first', workspace)), JSON.stringify(old)); assert.equal(f.launches, 1); assert.equal(f.decisions, 1)
 })
 test('version two report findings are strictly bounded and bound to the original report identity', async () => {

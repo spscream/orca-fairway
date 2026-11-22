@@ -493,3 +493,15 @@ test('executor completion and findings are displayed separately; reading a repor
     assert.equal(workflow.runs.two!.state, 'submitted'); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('an accepted legacy audit no longer displays a stale failed-check warning or continues automatically', async () => {
+  const workflow = auditedWorkflow('completed'); workflow.runs.two = { state: 'waiting', plan: null, review: null }
+  workflow.automatic = { state: 'paused', reason: 'checks_failed', configHash: 'synthetic', approvedHash: workflow.approvedHash!, expiresAt: Date.now() + 100000, dispatches: 1, limit: 2 }
+  let actions = 0
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(true), workflow }), 'fairway.workflow.action': () => { actions++; throw new Error('must not continue') } } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    const tree = JSON.stringify(view.tree()); assert.equal(tree.includes('The executor reported failed checks.'), false)
+    assert.ok(tree.includes('Automatic execution is paused.')); assert.equal(actions, 0); assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})

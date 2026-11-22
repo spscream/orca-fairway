@@ -12,7 +12,7 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
   const allowance = routingBudget(s!.config, s!.ledger, w), hasSubmitted = Object.values(w.runs).some(run => run.state === 'submitted')
   const budgetBlocked = !allowance.sufficient && !hasSubmitted, keyBlocked = !!s?.config.live && !s.keyPresent && !hasSubmitted
   const recordedCause = a?.reason === 'routing_failed' ? storedRoutingFailure(w) : a?.reason
-  const cause = recordedCause === 'budget_exhausted' && allowance.sufficient ? 'paused' : recordedCause
+  const cause = (recordedCause === 'budget_exhausted' && allowance.sufficient) || (recordedCause === 'checks_failed' && !hasSubmitted) ? 'paused' : recordedCause
   const messages: Record<AutomaticReason, Message> = {
     budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     missing_key: 'Save an OpenRouter key in Settings.', routing_timeout: 'Request timed out',
