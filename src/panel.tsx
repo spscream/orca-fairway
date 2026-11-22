@@ -1,20 +1,22 @@
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
-import { atom, Badge, Button, Callout, Card, Code, Heading, Image, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
+import { atom, Badge, Button, Callout, Card, Code, Heading, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
 import { budgetFromText } from './core/preferences.ts'
 import type { Status } from './protocol.ts'
 import { workflowPanel } from './workflow-panel.tsx'
+import type { BalanceItem } from './core/balance.ts'
+import { knownErrorCode } from './core/ui-errors.ts'
 const state = atom<Status | null>(null)
 const launching = atom(false)
 const task = atom(''), agent = atom<Agent>('codex'), plan = atom<Plan | null>(null)
 const journal = atom('[]')
+const balanceLoading = atom(false), balanceEpoch = atom(0)
 const draft = atom<Config>(DEFAULT_CONFIG), budget = atom('0.1'), calls = atom('5'), selectedProfile = atom(0), dirty = atom(false), saving = atom(false)
 const apiKey = atom(''), busy = atom(false), error = atom<Message | ''>(''), activeId = atom<string | null>(null)
 const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
-  const code = e instanceof Error ? e.message : ''
   const known: Record<string, Message> = {
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
@@ -35,7 +37,8 @@ function showError(e: unknown): void {
     step_not_launchable: 'Select and verify a subtask profile first.', workflow_not_ready: 'The workflow is not ready or has been closed.',
     invalid_review: 'The result review must contain 1–160 UTF-8 bytes, without code or secrets.'
   }
-  set(error, known[code] ?? 'The operation did not complete. Check the settings and Orca availability. Secrets and process output are hidden.')
+  const code = knownErrorCode(e, new Set(Object.keys(known)))
+  set(error, (code && known[code]) || 'The operation did not complete. Check the settings and Orca availability. Secrets and process output are hidden.')
 }
 function apply(s: Status, reset = !read(dirty)): void {
   set(state, s); set(plan, s.lastPlan)
@@ -87,7 +90,26 @@ async function save(): Promise<void> {
   } catch (e) { showError(e) } finally { set(saving, false) }
 }
 async function keySave(): Promise<void> {
+  set(balanceEpoch, read(balanceEpoch) + 1); set(balanceLoading, false)
+  const current = read(state); if (current) set(state, { ...current, balance: null })
   try { await plugin.request('fairway.key', { key: read(apiKey) }); set(apiKey, ''); await refresh() } catch (e) { set(apiKey, ''); showError(e) }
+}
+async function refreshBalance(): Promise<void> {
+  const epoch = read(balanceEpoch) + 1; set(balanceEpoch, epoch); set(balanceLoading, true)
+  try {
+    const balance = await plugin.request('fairway.balance', undefined, { timeoutMs: 12_000 })
+    const current = read(state); if (current && read(balanceEpoch) === epoch) set(state, { ...current, balance })
+  } catch (e) { if (read(balanceEpoch) === epoch) showError(e) }
+  finally { if (read(balanceEpoch) === epoch) set(balanceLoading, false) }
+}
+function balanceText(value?: BalanceItem): string {
+  if (!value) return t('Not checked')
+  if (value.state === 'available' && value.remainingUsd !== null) return '$' + value.remainingUsd.toFixed(4)
+  const messages: Record<Exclude<BalanceItem['state'], 'available'>, Message> = {
+    unlimited: 'No key limit', restricted: 'Management key required', unavailable: 'Unavailable',
+    missing_key: 'Not set', invalid_key: 'Invalid key', timeout: 'Request timed out'
+  }
+  return value.state === 'available' ? t('Unavailable') : t(messages[value.state])
 }
 async function bridge(enabled: boolean): Promise<void> {
   try { await plugin.request('fairway.bridge', { enabled }); await refresh() } catch (e) { showError(e) }
@@ -135,7 +157,7 @@ export default function Panel() {
       }, showError)}</Tab>
       <Tab value="task" label={t("Task")}>
         <Stack gap="md">
-          <Callout tone="neutral" title={s?.config.live ? t("JEV enabled") : t("Offline")}><Text>{s?.config.live ? t("JEV receives only the entered description and allowed profile cards.") : t("Uses the fallback profile. No paid requests.")}</Text></Callout>
+          <Callout tone="neutral" title={s?.config.live ? t("JEV enabled") : t("JEV disabled")}><Text>{s?.config.live ? t("JEV receives only the entered description and allowed profile cards.") : t("Uses the fallback profile. No paid requests.")}</Text></Callout>
           {!s?.workspace ? <Text tone="warning">{t("Open a local Orca workspace.")}</Text> : null}
           <Select label={t("Agent")} disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
           <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
@@ -176,6 +198,15 @@ export default function Panel() {
       </Tab>
       <Tab value="history" label={t("Audit log")}><Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text><Code block>{read(journal)}</Code></Stack></Tab>
     </Tabs>
+    <Card title={t('OpenRouter balance')}>
+      <Stack gap="sm">
+        <KeyValue items={[{ label: t('Account balance'), value: balanceText(s?.balance?.account) }, { label: t('Key limit remaining'), value: balanceText(s?.balance?.key) }]} />
+        <Text muted size="xs">{t('Read-only request; separate from the Fairway budget.')}</Text>
+        {!s?.keyPresent ? <Text muted>{t('Save an OpenRouter key in Settings.')}</Text> : null}
+        {s?.balance ? <Text muted size="xs">{t('Last checked:')} <RelativeTime at={s.balance.checkedAt} /></Text> : null}
+        <Button variant="ghost" size="sm" icon="refresh" disabled={!s?.keyPresent || read(balanceLoading)} onPress={refreshBalance}>{t('Refresh balance')}</Button>
+      </Stack>
+    </Card>
     <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? 0}. {t('Reserved:')} ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
     <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
   </Stack>

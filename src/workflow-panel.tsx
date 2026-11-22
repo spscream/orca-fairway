@@ -11,7 +11,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
     try { changed(await fn()) } catch (e) { error(e) } finally { set(pending, false) }
   }
   const action = (action: WorkflowAction, stepId?: string) => perform(async () => {
-    const result = await plugin.request('fairway.workflow.action', { id: w!.id, action, stepId, ...(action === 'review' ? { review: read(review) } : {}) }, { timeoutMs: 60_000 })
+    const result = await plugin.request('fairway.workflow.action', { id: w!.id, action, ...(stepId === undefined ? {} : { stepId }), ...(action === 'review' ? { review: read(review) } : {}) }, { timeoutMs: 60_000 })
     if (action === 'review') set(review, '')
     return result
   })
@@ -27,11 +27,14 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
         <Stack gap="sm">
           <Text>{t("Original task:")} {w.task}</Text>
           <Text>{t("Dispatch state:")} {w.coordinator.state}. {t('Pair verification:')} {w.coordinator.evidence.source}.</Text>
+          {w.coordinator.evidence.source === 'codex_catalog_version_mismatch' ? <Text tone="warning">{t('Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.')}</Text> : null}
           <Text muted>{t("The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.")}</Text>
           <Button disabled={waiting || !s?.config.execution || !w.coordinator.evidence.verified || w.coordinator.state !== 'shadow' || !!w.analysis} onPress={() => action('launchCoordinator')}>{t("Launch coordinator through Orca")}</Button>
+          <Button variant="ghost" disabled={waiting || w.coordinator.state !== 'shadow' || !!w.analysis} onPress={() => action('refreshCoordinator')}>{t('Refresh coordinator profile')}</Button>
           {w.coordinator.state === 'dispatch_unknown' ? <Text tone="warning">{t("The coordinator dispatch outcome is unknown. Inspect Orca; retries are blocked.")}</Text> : null}
           <Text muted>{t("Analysis file in the private Fairway directory:")}</Text><Code block>{w.artifact}</Code>
           <Button disabled={waiting || !!w.approvedHash} onPress={() => action('read')}>{t("Read coordinator analysis")}</Button>
+          {!w.analysis && w.coordinator.state === 'shadow' ? <Text muted>{t('Launch the coordinator before reading its analysis.')}</Text> : null}
         </Stack>
       </Card>
       {w.analysis ? <Stack gap="sm">

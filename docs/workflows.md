@@ -6,7 +6,7 @@ Use this mode when an ambiguous task or documentation reference needs analysis b
 
 1. Open **Workflow** in a local Orca workspace. Enter a task and references, up to 2000 UTF-8 bytes.
 2. Select a **Coordinator profile** and click **Prepare analysis**. The allowlisted pair is verified; neither JEV nor an agent starts.
-3. Enable explicit execution if needed. A configuration change invalidates the prepared coordinator decision: close that workflow and prepare again.
+3. Enable explicit execution if needed. After a configuration or catalog change, use **Refresh coordinator profile** to recheck the existing task. A shadow coordinator can be refreshed without launching or paying for a JEV decision.
 4. Click **Launch coordinator through Orca**. Answer clarification questions in its chat. The coordinator is instructed to read sources, analyze the task, and write `analysis.json` at the displayed private path.
 5. Click **Read coordinator analysis**. Review conclusions, assumptions, sources, instructions, acceptance criteria, and routing briefs. Reading sources is reported by the coordinator, not technically proven by Fairway.
 6. Resolve questions and unavailable sources in the coordinator chat and request an updated file. Approval is blocked until they are resolved. All HTTP(S) links from the task must appear in the source list.

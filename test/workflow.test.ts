@@ -157,3 +157,13 @@ test('a pre-dispatch configuration failure preserves the step for a fresh routin
   await f.flows.route(id, 'implement', workspace); await f.flows.launch(id, 'implement', workspace)
   assert.equal(f.calls.length, 1)
 })
+test('a blocked coordinator can refresh verification without changing its task or launching', async () => {
+  const f = fixture(); f.runtime.verify = async () => ({ verified: false, source: 'codex_catalog_version_mismatch' })
+  const original = await f.flows.create('Synthetic coordinator task', 'standard', workspace)
+  f.runtime.verify = async () => ({ verified: true, source: 'synthetic-managed-catalog' })
+  const refreshed = await f.flows.refreshCoordinator(original.id, workspace)
+  assert.equal(refreshed.task, original.task); assert.equal(refreshed.artifact, original.artifact)
+  assert.equal(refreshed.coordinator.evidence.verified, true); assert.notEqual(refreshed.coordinator.id, original.coordinator.id)
+  assert.equal(f.calls.length, 0); assert.equal(f.traffic.length, 0)
+  assert.equal((f.data.get('plan:' + original.coordinator.id) as any).state, 'cancelled')
+})

@@ -116,6 +116,15 @@ export class Workflows {
       return this.save(w)
     })
   }
+  async refreshCoordinator(id: string, workspace: Workspace): Promise<Workflow> {
+    return this.serial(async () => {
+      const w = await this.get(id, workspace)
+      requireThat(!w.cancelled && !w.analysis && w.coordinator.state === 'shadow', 'workflow_not_ready')
+      await this.engine.cancel(w.coordinator.id)
+      w.coordinator = await this.engine.plan(w.coordinatorTask, 'auto', workspace, randomUUID(), undefined, { profileId: w.coordinator.profile.id })
+      await this.engine.workflowEvent(id, 'coordinator_refreshed'); return this.save(w)
+    })
+  }
   async read(id: string, workspace: Workspace): Promise<Workflow> {
     return this.serial(async () => {
       const w = await this.get(id, workspace); requireThat(!w.cancelled, 'workflow_cancelled')

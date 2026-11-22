@@ -1,4 +1,40 @@
-# Fairway for Orca — verification report 0.4.4
+# Fairway for Orca — verification report 0.5.0
+
+Added explicit, read-only OpenRouter balance refresh and repaired workflow action requests. Requests without a subtask now omit `stepId` instead of sending `undefined`, which Orca rejects before the handler. Safe domain error codes survive the panel bridge; raw process output remains hidden. Existing unstarted workflows can refresh their coordinator profile without re-entering the task, contacting JEV, or launching an agent.
+
+Codex verification now reads the selected Orca account’s non-secret model catalog. Version, freshness, exact model and exact effort checks remain mandatory. A real local metadata-only check found a shared catalog created by client **0.165.0** while the available CLI reports **0.171.0**. This remains a dispatch blocker until the matching Codex client refreshes that account’s catalog. An earlier successful preflight was transient: another client subsequently rewrote the shared cache. Fairway neither rewrites that cache nor starts a chat to refresh it. The real task and its repository were not accessed or executed.
+
+## Verification
+
+Exact commands:
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+npm run test:orca
+npm run check:orca
+npm run validate
+npm run audit:public
+git diff --check
+```
+
+Results: **54/54** standalone tests, **71/71** through Orca, **12** panel scenarios with no issues or warnings. Type checks and manifest validation passed. Synthetic regressions cover the omitted field, bridged errors, coordinator refresh, selected-account metadata, explicit balance access, missing key, forbidden account funds, key limits, malformed responses, bounded response size, timeout, request coalescing, cache lifetime, and key-change cancellation. Existing invalid-choice, injection, missing-key, budget-exhaustion and no-accidental-execution coverage remains green. All 11 UI locales contain 160 typed messages.
+
+A temporary development panel was visually checked using clearly marked synthetic funds. It was unloaded afterward. Diagnostic handlers and artificial balance values existed only in the private staged copy and are removed by the final restaging. No extra permissions or runtime dependencies were added. A clean committed copy is validated before the release tag; the stable plugin is updated through Orca without resetting user settings, keys, or workflows.
+
+## Network, cost and remaining blockers
+
+Paid JEV/model requests: **0**. Paid cost: **$0**. No coordinators, executors or extra AI agents were launched. `OPENROUTER_API_KEY` was absent in this session. Secret files and other working repositories were not inspected. Existing source code and real task descriptions were not sent to OpenRouter.
+
+One anonymous metadata GET from the actual plugin host to the public OpenRouter model endpoint timed out (`ETIMEDOUT`). No credential or generation request was involved. A balance query may also have been initiated through the operator’s temporary panel; its observed result was unavailable, and this implementation does not retain a request audit or raw account response. No paid endpoint was invoked by the checks. Live balance retrieval and paid JEV routing remain unverified because of host connectivity and the absent session key. Account funds additionally require access accepted by the [credits endpoint](https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits); the ordinary-key [current-key endpoint](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-api-key) exposes a separate key limit. No additional management key was requested or created.
+
+Balance requests use the existing plugin-owned secret, at most two fixed GET endpoints per refresh, no redirects, an 8-second deadline, and a 16 KiB response limit. They are explicit, coalesced, cached only in memory for 30 seconds, and cancelled on key replacement. Missing/unavailable funds never become zero. The display does not replace the persistent JEV budget or reserve money. Key and account metadata are not added to audit logs.
+
+Usage: open Fairway and click **Refresh balance**. For an existing shadow coordinator, first update its selected account’s Codex catalog through the matching client, then click **Refresh coordinator profile**. Launch only after verification succeeds; wait for the coordinator’s artifact before **Read coordinator analysis**. Real end-to-end execution remains unverified and was deliberately left to the operator.
+
+## Previous release: 0.4.4
+
 
 Changed `contributes.panels[0].icon` from `branch` to the supported built-in `flag`. The custom buoy PNG remains the plugin-listing and panel-header image. No code, permissions, configuration schema, or execution behavior changed.
 

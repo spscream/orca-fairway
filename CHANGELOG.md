@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+- Explicit OpenRouter balance refresh: separate account funds and key-limit values, permission-aware errors, timeout and in-memory caching.
+- Codex verification uses the Orca-selected managed account catalog rather than an unrelated system cache.
+- Existing shadow coordinators can refresh their verified profile without losing the task or launching an agent.
+- Workflow actions omit undefined optional fields, fixing host-side invalid-input failures.
+- Fixed error-code propagation and wrapped error mapping; added guidance before reading missing analysis.
+- Updated all 11 UI locales; no new permissions or dependencies.
+
 ## 0.4.4
 
 - Changed the native panel/tab symbol from branch to flag to match the maritime identity.

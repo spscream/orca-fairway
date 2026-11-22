@@ -10,11 +10,12 @@ import { preferences, withPreferences } from './core/preferences.ts'
 import { startBridge } from './core/bridge.ts'
 import { Workflows, type Artifacts } from './core/workflow.ts'
 import { PrivateArtifacts } from './core/artifacts.ts'
+import { Balances, type BalanceTransport } from './core/balance.ts'
 import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts'
 import type { Status } from './protocol.ts'
 let stop: (() => Promise<void>) | null = null
 export async function deactivate(): Promise<void> { await stop?.(); stop = null }
-export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport, artifacts: Artifacts = new PrivateArtifacts(join(homedir(), '.config', 'fairway-for-orca', 'workflows'))) {
+export function createWorker(runtime: Runtime = new NativeRuntime(), transport?: Transport, artifacts: Artifacts = new PrivateArtifacts(join(homedir(), '.config', 'fairway-for-orca', 'workflows')), balanceRequest?: BalanceTransport) {
   return async function activate(orca: OrcaWorkerApi): Promise<void> {
     // Preserve 0.1.0 configuration when adopting Orca's native settings.
     if (!await orca.storage.get('nativeSettingsMigrated')) {
@@ -33,9 +34,10 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }
     const engine = new Engine(store, runtime, () => orca.secrets.get('openrouter'), transport)
     const workflows = new Workflows(store, engine, artifacts)
+    const balances = new Balances(() => orca.secrets.get('openrouter'), balanceRequest)
     let bridge: Awaited<ReturnType<typeof startBridge>> | null = null
     const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll() })
-    stop = async () => { settingsChanged.dispose(); engine.cancelAll(); await bridge?.close(); bridge = null }
+    stop = async () => { settingsChanged.dispose(); engine.cancelAll(); balances.invalidate(); await bridge?.close(); bridge = null }
     const workspace = async (): Promise<Workspace | null> => {
       const context = await orca.host.call('workspace.readContext')
       if (!context?.workspaceId) return null
@@ -49,13 +51,17 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     const status = async (): Promise<Status> => {
       const w = await workspace()
       const config = await engine.config(), lastPlan = (await store.get('lastPlan') as Plan | null) ?? null
-      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null }
+      return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan?.configHash === digest(config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null, balance: balances.cached() }
     }
     // Errors expose only fixed codes, never exception strings, task text or child output.
     const safe = <T, R>(action: (input: T) => Promise<R>) => async (input: T): Promise<R> => {
-      try { return await action(input) } catch (e) { throw new Error(e instanceof RouterError ? e.code : 'operation_unavailable') }
+      try { return await action(input) } catch (e) {
+        const code = e instanceof RouterError ? e.code : 'operation_unavailable'
+        throw Object.assign(new Error(code), { code })
+      }
     }
     orca.panels.handle('fairway.status', safe(status))
+    orca.panels.handle('fairway.balance', safe(() => balances.refresh()))
     orca.panels.handle('fairway.workflow.create', safe(async ({ task, profileId }) => {
       const w = await workspace(); requireThat(w, 'local_workspace_required')
       return workflows.create(task, profileId, w)
@@ -63,6 +69,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     orca.panels.handle('fairway.workflow.action', safe(async ({ id, action, stepId, review }) => {
       const w = await workspace(); requireThat(w, 'local_workspace_required')
       if (action === 'launchCoordinator') return workflows.launchCoordinator(id, w)
+      if (action === 'refreshCoordinator') return workflows.refreshCoordinator(id, w)
       if (action === 'read') return workflows.read(id, w)
       if (action === 'approve') return workflows.approve(id, w)
       if (action === 'cancel') return workflows.cancel(id, w)
@@ -79,6 +86,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }))
     orca.panels.handle('fairway.key', safe(async ({ key }) => {
       requireThat(typeof key === 'string' && (key === '' || /^[\x21-\x7e]{16,4096}$/.test(key)), 'invalid_key')
+      balances.invalidate()
       if (key) await orca.secrets.set('openrouter', key); else await orca.secrets.delete('openrouter')
       engine.cancelAll()
       return { present: !!key }

@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "推理强度包含在 Cursor ID 中",
   "model not set": "未设置模型",
   "none": "无",
-  "not required": "不需要"
+  "not required": "不需要",
+  "OpenRouter balance": "OpenRouter 余额",
+  "Account balance": "账户余额",
+  "Key limit remaining": "密钥剩余额度",
+  "Refresh balance": "刷新余额",
+  "Not checked": "未查询",
+  "Unavailable": "不可用",
+  "No key limit": "密钥无额度限制",
+  "Management key required": "需要管理密钥",
+  "Read-only request; separate from the Fairway budget.": "只读查询；独立于 Fairway 预算。",
+  "Last checked:": "上次查询：",
+  "Invalid key": "密钥无效",
+  "Request timed out": "请求超时",
+  "Save an OpenRouter key in Settings.": "请在设置中保存 OpenRouter 密钥。",
+  "JEV disabled": "JEV 已禁用",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex 目录与 CLI 版本不同。请更新所选账户的目录，然后重新验证此配置。",
+  "Refresh coordinator profile": "刷新协调器配置",
+  "Launch the coordinator before reading its analysis.": "请先启动协调器，再读取其分析。"
 } satisfies Record<Message, string>

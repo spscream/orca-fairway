@@ -77,6 +77,23 @@ test('workflow handlers connect synthetic analysis, cross-agent routing and guar
   await worker.request('fairway.workflow.action', { id: w.id, action: 'approve' })
   const planned: any = await worker.request('fairway.workflow.action', { id: w.id, action: 'route', stepId: 'check' })
   assert.equal(planned.runs.check.plan.profile.agent, 'codex')
+  await assert.rejects(worker.request('fairway.workflow.action', { id: 'invalid', action: 'read' }), (e: unknown) => typeof e === 'object' && e !== null && (e as { code?: string }).code === 'invalid_workflow')
   await assert.rejects(worker.request('fairway.workflow.action', { id: w.id, action: 'launch', stepId: 'check' }), /execution_disabled/)
   assert.equal(launches, 0); assert.deepEqual(worker.refusals, []); await worker.deactivate()
+})
+test('explicit balance refresh is read-only, cached and cleared when the own key changes', async () => {
+  let requests = 0, launches = 0, decisions = 0
+  const runtime: Runtime = { verify: async () => ({ verified: false, source: 'synthetic' }), launch: async () => { launches++; throw new Error('must not launch') } }
+  const host = mockHost({ secrets: { openrouter: 'synthetic-secret-123456' }, storage: { ledger: { calls: 2, reservedMicrousd: 26216 } }, results: { 'workspace.readContext': null } })
+  const worker = await mountWorker({ default: createWorker(runtime, async () => { decisions++; throw new Error('must not decide') }, undefined, async () => { requests++; return { status: 403 } }) }, { host })
+  assert.equal((await worker.request('fairway.status') as any).balance, null); assert.equal(requests, 0)
+  const result: any = await worker.request('fairway.balance')
+  assert.equal(result.account.state, 'restricted'); assert.equal(requests, 2)
+  assert.equal((await worker.request('fairway.status') as any).ledger.calls, 2)
+  await worker.request('fairway.balance'); assert.equal(requests, 2)
+  await worker.request('fairway.key', { key: '' })
+  assert.equal((await worker.request('fairway.status') as any).balance, null)
+  assert.equal((await worker.request('fairway.balance') as any).account.state, 'missing_key')
+  assert.equal(launches, 0); assert.equal(decisions, 0); assert.deepEqual(worker.logs, []); assert.deepEqual(worker.refusals, [])
+  assert.ok(!JSON.stringify(result).includes('synthetic-secret')); await worker.deactivate()
 })

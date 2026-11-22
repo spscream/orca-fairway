@@ -5,7 +5,7 @@ import { Engine } from '../src/core/engine.ts'
 import { DEFAULT_CONFIG, validateConfig } from '../src/core/config.ts'
 import { parseJson } from '../src/core/json.ts'
 import { DECISIONS_URL, makeRequest, RESERVATION_MICROUSD, validateAnswer, validatePrice } from '../src/core/jev.ts'
-import { childEnvironment, launchArgs, NativeRuntime, orcaExecutable } from '../src/core/runtime.ts'
+import { childEnvironment, codexMetadataHome, launchArgs, NativeRuntime, orcaExecutable } from '../src/core/runtime.ts'
 import type { Config, Runtime, Store, Transport, Workspace } from '../src/core/types.ts'
 const workspace: Workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' }
 const metadata = { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } } }
@@ -139,7 +139,7 @@ test('safe argv preserves hostile text, native Cursor alias and strips JEV crede
 })
 test('Codex metadata must match both the model pair and the actual CLI version', async () => {
   const cache = { fetched_at: new Date().toISOString(), client_version: '0.synthetic', models: [{ slug: 'gpt-test', visibility: 'list', supported_reasoning_levels: [{ effort: 'low' }] }] }
-  const runtime = new NativeRuntime({}, async () => ({ code: 0, stdout: 'codex-cli 0.synthetic' }), async () => JSON.stringify(cache))
+  const runtime = new NativeRuntime({}, async (_file, args) => ({ code: 0, stdout: args[0] === 'account' ? '{"ok":true,"result":{"activeAccountId":null}}' : 'codex-cli 0.synthetic' }), async () => JSON.stringify(cache))
   const profile = { ...DEFAULT_CONFIG.profiles[0]!, model: 'gpt-test' }
   assert.equal((await runtime.verify(profile)).verified, true)
   cache.client_version = 'older'; assert.equal((await runtime.verify(profile)).verified, false)
@@ -163,4 +163,15 @@ test('cancelling during metadata verification cannot resurrect a shadow plan', a
   assert.equal((await planning).state, 'cancelled')
   await assert.rejects(f.engine.launch(id, 'Synthetic task', workspace), /plan_not_launchable/)
   assert.equal(f.calls.length, 0)
+})
+test('Codex verification uses the Orca-selected managed account instead of a mismatched system cache', async () => {
+  const id = '00000000-0000-0000-0000-000000000001', paths: string[] = []
+  const runner: ConstructorParameters<typeof NativeRuntime>[1] = async (_file, args) => ({ code: 0, stdout: args[0] === 'account' ? JSON.stringify({ ok: true, result: { activeAccountId: id } }) : 'codex-cli 0.synthetic' })
+  const runtime = new NativeRuntime({ CODEX_HOME: '/synthetic-system-home' }, runner, async path => {
+    paths.push(path); return JSON.stringify({ client_version: path.includes(id) ? '0.synthetic' : 'older', fetched_at: new Date().toISOString(), models: [{ slug: 'synthetic-model', visibility: 'list', supported_reasoning_levels: [{ effort: 'medium' }] }] })
+  })
+  const result = await runtime.verify({ ...DEFAULT_CONFIG.profiles[1]!, model: 'synthetic-model' })
+  assert.equal(result.verified, true); assert.equal(paths.length, 1); assert.ok(paths[0]!.includes(id)); assert.ok(paths[0]!.endsWith('models_cache.json'))
+  assert.equal(codexMetadataHome({ ok: true, result: { activeAccountId: id, activeAccountIdsByRuntime: { host: null } } }, { CODEX_HOME: '/synthetic-system' }), '/synthetic-system')
+  assert.throws(() => codexMetadataHome({ ok: true, result: { activeAccountId: '../outside' } }, {}))
 })

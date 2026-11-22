@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "усилие в идентификаторе Cursor",
   "model not set": "модель не задана",
   "none": "нет",
-  "not required": "не требуется"
+  "not required": "не требуется",
+  "OpenRouter balance": "Баланс OpenRouter",
+  "Account balance": "Баланс аккаунта",
+  "Key limit remaining": "Остаток лимита ключа",
+  "Refresh balance": "Обновить баланс",
+  "Not checked": "Не проверено",
+  "Unavailable": "Недоступно",
+  "No key limit": "Лимит ключа не задан",
+  "Management key required": "Нужен управляющий ключ",
+  "Read-only request; separate from the Fairway budget.": "Запрос только для чтения; отдельно от бюджета Fairway.",
+  "Last checked:": "Проверено:",
+  "Invalid key": "Ключ недействителен",
+  "Request timed out": "Время запроса истекло",
+  "Save an OpenRouter key in Settings.": "Сохраните ключ OpenRouter в настройках.",
+  "JEV disabled": "JEV выключен",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Версии каталога и клиента Codex различаются. Обновите каталог выбранной учётной записи, затем повторно проверьте этот профиль.",
+  "Refresh coordinator profile": "Обновить профиль координатора",
+  "Launch the coordinator before reading its analysis.": "Запустите координатора, прежде чем читать его анализ."
 } satisfies Record<Message, string>

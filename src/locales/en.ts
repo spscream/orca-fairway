@@ -141,6 +141,23 @@ export const en = {
   "effort encoded in the Cursor ID": "effort encoded in the Cursor ID",
   "model not set": "model not set",
   "none": "none",
-  "not required": "not required"
+  "not required": "not required",
+  "OpenRouter balance": "OpenRouter balance",
+  "Account balance": "Account balance",
+  "Key limit remaining": "Key limit remaining",
+  "Refresh balance": "Refresh balance",
+  "Not checked": "Not checked",
+  "Unavailable": "Unavailable",
+  "No key limit": "No key limit",
+  "Management key required": "Management key required",
+  "Read-only request; separate from the Fairway budget.": "Read-only request; separate from the Fairway budget.",
+  "Last checked:": "Last checked:",
+  "Invalid key": "Invalid key",
+  "Request timed out": "Request timed out",
+  "Save an OpenRouter key in Settings.": "Save an OpenRouter key in Settings.",
+  "JEV disabled": "JEV disabled",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.",
+  "Refresh coordinator profile": "Refresh coordinator profile",
+  "Launch the coordinator before reading its analysis.": "Launch the coordinator before reading its analysis."
 } as const
 export type Message = keyof typeof en

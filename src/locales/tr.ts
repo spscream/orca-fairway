@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "akıl yürütme düzeyi Cursor kimliğine dahil",
   "model not set": "model ayarlanmadı",
   "none": "yok",
-  "not required": "gerekli değil"
+  "not required": "gerekli değil",
+  "OpenRouter balance": "OpenRouter bakiyesi",
+  "Account balance": "Hesap bakiyesi",
+  "Key limit remaining": "Anahtarın kalan limiti",
+  "Refresh balance": "Bakiyeyi yenile",
+  "Not checked": "Kontrol edilmedi",
+  "Unavailable": "Kullanılamıyor",
+  "No key limit": "Anahtar limiti yok",
+  "Management key required": "Yönetim anahtarı gerekli",
+  "Read-only request; separate from the Fairway budget.": "Salt okunur istek; Fairway bütçesinden ayrıdır.",
+  "Last checked:": "Son kontrol:",
+  "Invalid key": "Geçersiz anahtar",
+  "Request timed out": "İstek zaman aşımına uğradı",
+  "Save an OpenRouter key in Settings.": "Ayarlarda bir OpenRouter anahtarı kaydedin.",
+  "JEV disabled": "JEV devre dışı",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex kataloğu ve CLI sürümleri farklı. Seçili hesabın kataloğunu güncelleyin, ardından bu profili yeniden denetleyin.",
+  "Refresh coordinator profile": "Koordinatör profilini yenile",
+  "Launch the coordinator before reading its analysis.": "Analizi okumadan önce koordinatörü başlatın."
 } satisfies Record<Message, string>

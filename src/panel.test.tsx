@@ -3,9 +3,10 @@ import * as panel from './panel.tsx'
 import { DEFAULT_CONFIG, validateConfig } from './core/config.ts'
 import type { Plan } from './core/types.ts'
 import type { Status } from './protocol.ts'
+import type { Workflow } from './core/workflow.ts'
 import { locales, translate } from './core/i18n.ts'
 const example: Plan = { id: 'a'.repeat(36), profile: DEFAULT_CONFIG.profiles[0]!, reason: 'offline', confidence: null, createdAt: 1, expiresAt: 9999999999999, configHash: '', taskHash: '', workspaceHash: '', evidence: { verified: true, source: 'synthetic_metadata' }, costUsd: null, reservedMicrousd: 0, state: 'shadow', observedModel: null, observedEffort: null }
-function status(execution = false): Status { return { config: { ...DEFAULT_CONFIG, execution }, ledger: { calls: 0, reservedMicrousd: 0 }, keyPresent: false, workspace: 'synthetic', lastPlan: null, bridgePath: null, workflow: null } }
+function status(execution = false): Status { return { config: { ...DEFAULT_CONFIG, execution }, ledger: { calls: 0, reservedMicrousd: 0 }, keyPresent: false, workspace: 'synthetic', lastPlan: null, bridgePath: null, workflow: null, balance: null } }
 test('panel defaults to shadow and picking a profile never launches', async () => {
   let launches = 0
   const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => example, 'fairway.cancel': () => ({ cancelled: true }), 'fairway.launch': () => { launches++; return { ...example, state: 'submitted' } } } })
@@ -131,4 +132,40 @@ test('all host locales translate settings and workflow controls without changing
     assert.deepEqual(view.errors, [], locale); assert.deepEqual(view.refusals, [], locale)
     await view.unmount()
   }
+})
+test('balance refresh is explicit and a restricted account never displays fabricated zero funds', async () => {
+  let requests = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), keyPresent: true }),
+    'fairway.balance': () => { requests++; return { account: { state: 'restricted', remainingUsd: null }, key: { state: 'available', remainingUsd: 4 }, checkedAt: Date.now() } }
+  } })
+  const view = await mount(panel, { host })
+  assert.equal(requests, 0)
+  await view.press({ text: 'Refresh balance' }); assert.equal(requests, 1)
+  const tree = JSON.stringify(view.tree())
+  assert.ok(tree.includes('Management key required')); assert.ok(tree.includes('$4.0000'))
+  const items = view.findAll({ type: 'KeyValue' }).flatMap(node => (node.props.items ?? []) as { label: string; value: string }[])
+  assert.equal(items.find(item => item.label === 'Account balance')?.value, 'Management key required')
+  assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
+})
+test('a wrapped analysis error shows the actionable message rather than the generic failure', async () => {
+  const workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(), workflow }), 'fairway.workflow.action': input => { assert.equal(Object.hasOwn(input, 'stepId'), false); throw Object.assign(new Error('Plugin request failed: analysis_not_found'), { code: 'analysis_not_found' }) } } })
+  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  await view.press({ text: 'Read coordinator analysis' })
+  assert.ok(view.find({ text: 'The coordinator has not written the analysis file yet.' })); assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+test('refreshing an unverified coordinator enables its launch without dispatching it', async () => {
+  let actions = 0
+  let workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: { ...example, evidence: { verified: false, source: 'codex_catalog_version_mismatch' } }, analysis: null, approvedHash: null, cancelled: false, runs: {} }
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), workflow }),
+    'fairway.workflow.action': input => { actions++; assert.equal(input.action, 'refreshCoordinator'); assert.equal(Object.hasOwn(input, 'stepId'), false); workflow = { ...workflow, coordinator: example }; return workflow }
+  } })
+  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, true)
+  await view.press({ text: 'Refresh coordinator profile' })
+  assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, false); assert.equal(actions, 1)
+  assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
 })

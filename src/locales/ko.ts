@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "추론 강도가 Cursor ID에 포함됨",
   "model not set": "모델 설정 안 됨",
   "none": "없음",
-  "not required": "필요 없음"
+  "not required": "필요 없음",
+  "OpenRouter balance": "OpenRouter 잔액",
+  "Account balance": "계정 잔액",
+  "Key limit remaining": "키의 남은 한도",
+  "Refresh balance": "잔액 새로 고침",
+  "Not checked": "확인 안 됨",
+  "Unavailable": "사용 불가",
+  "No key limit": "키 한도 없음",
+  "Management key required": "관리 키 필요",
+  "Read-only request; separate from the Fairway budget.": "읽기 전용 요청이며 Fairway 예산과 별개입니다.",
+  "Last checked:": "마지막 확인:",
+  "Invalid key": "유효하지 않은 키",
+  "Request timed out": "요청 시간 초과",
+  "Save an OpenRouter key in Settings.": "설정에 OpenRouter 키를 저장하세요.",
+  "JEV disabled": "JEV 비활성화됨",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex 카탈로그와 CLI 버전이 다릅니다. 선택한 계정의 카탈로그를 업데이트한 후 이 프로필을 다시 확인하세요.",
+  "Refresh coordinator profile": "조정자 프로필 새로 고침",
+  "Launch the coordinator before reading its analysis.": "분석을 읽기 전에 조정자를 실행하세요."
 } satisfies Record<Message, string>

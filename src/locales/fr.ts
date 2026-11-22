@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "effort inclus dans l’identifiant Cursor",
   "model not set": "modèle non défini",
   "none": "aucune",
-  "not required": "non requis"
+  "not required": "non requis",
+  "OpenRouter balance": "Solde OpenRouter",
+  "Account balance": "Solde du compte",
+  "Key limit remaining": "Limite restante de la clé",
+  "Refresh balance": "Actualiser le solde",
+  "Not checked": "Non vérifié",
+  "Unavailable": "Indisponible",
+  "No key limit": "Clé sans limite",
+  "Management key required": "Clé de gestion requise",
+  "Read-only request; separate from the Fairway budget.": "Requête en lecture seule, distincte du budget Fairway.",
+  "Last checked:": "Dernière vérification :",
+  "Invalid key": "Clé invalide",
+  "Request timed out": "Délai dépassé",
+  "Save an OpenRouter key in Settings.": "Enregistrez une clé OpenRouter dans les paramètres.",
+  "JEV disabled": "JEV désactivé",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Les versions du catalogue Codex et de la CLI diffèrent. Mettez à jour le catalogue du compte sélectionné, puis vérifiez à nouveau ce profil.",
+  "Refresh coordinator profile": "Actualiser le profil du coordinateur",
+  "Launch the coordinator before reading its analysis.": "Lancez le coordinateur avant de lire son analyse."
 } satisfies Record<Message, string>

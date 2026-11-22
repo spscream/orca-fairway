@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "推理強度包含在 Cursor ID 中",
   "model not set": "未設置模型",
   "none": "無",
-  "not required": "不需要"
+  "not required": "不需要",
+  "OpenRouter balance": "OpenRouter 餘額",
+  "Account balance": "帳戶餘額",
+  "Key limit remaining": "金鑰剩餘額度",
+  "Refresh balance": "重新整理餘額",
+  "Not checked": "尚未查詢",
+  "Unavailable": "無法使用",
+  "No key limit": "金鑰無額度限制",
+  "Management key required": "需要管理金鑰",
+  "Read-only request; separate from the Fairway budget.": "唯讀查詢；獨立於 Fairway 預算。",
+  "Last checked:": "上次查詢：",
+  "Invalid key": "金鑰無效",
+  "Request timed out": "請求逾時",
+  "Save an OpenRouter key in Settings.": "請在設定中儲存 OpenRouter 金鑰。",
+  "JEV disabled": "JEV 已停用",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex 目錄與 CLI 版本不同。請更新所選帳戶的目錄，然後重新驗證此設定。",
+  "Refresh coordinator profile": "重新整理協調器設定",
+  "Launch the coordinator before reading its analysis.": "請先啟動協調器，再讀取其分析。"
 } satisfies Record<Message, string>

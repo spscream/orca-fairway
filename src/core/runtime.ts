@@ -23,6 +23,15 @@ export function launchArgs(profile: Profile, task: string, workspace: Workspace)
   args.push('--prompt', 'Task submitted through Fairway for Orca:\n' + task, '--json')
   return args
 }
+export function codexMetadataHome(metadata: unknown, env: NodeJS.ProcessEnv, platform = process.platform, home = homedir()): string {
+  requireThat(record(metadata) && metadata.ok === true && record(metadata.result), 'codex_account_metadata_unavailable')
+  const data = metadata.result, byRuntime = data.activeAccountIdsByRuntime
+  const active = record(byRuntime) && Object.hasOwn(byRuntime, 'host') ? byRuntime.host : data.activeAccountId
+  if (active === null || active === 'system') return env.CODEX_HOME || join(home, '.codex')
+  requireThat(typeof active === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(active), 'codex_account_metadata_unavailable')
+  const appData = platform === 'darwin' ? join(home, 'Library', 'Application Support') : platform === 'win32' ? env.APPDATA || join(home, 'AppData', 'Roaming') : env.XDG_CONFIG_HOME || join(home, '.config')
+  return join(appData, 'orca', 'codex-accounts', active, 'home')
+}
 export class NativeRuntime implements Runtime {
   constructor(private readonly env: NodeJS.ProcessEnv = process.env, private readonly run: Runner = runFile,
     private readonly read: (path: string) => Promise<string> = p => readFile(p, 'utf8')) {}
@@ -33,7 +42,9 @@ export class NativeRuntime implements Runtime {
       const aliases = result.stdout.split('\n').map(l => /^([a-zA-Z0-9._-]+) - /.exec(l.trim())?.[1]).filter(Boolean)
       return { verified: aliases.includes(profile.model), source: 'cursor_native_catalog' }
     }
-    const path = join(this.env.CODEX_HOME || join(homedir(), '.codex'), 'models_cache.json')
+    // Orca launches its selected managed account, not necessarily the system Codex home.
+    const accounts = await this.run(orcaExecutable(this.env), ['account', 'list', '--agent', 'codex', '--json'], { env: childEnvironment(this.env), timeout: 5000 })
+    const path = join(codexMetadataHome(JSON.parse(accounts.stdout), this.env), 'models_cache.json')
     const cache: unknown = JSON.parse(await this.read(path))
     requireThat(record(cache) && Array.isArray(cache.models), 'invalid_codex_catalog')
     const fetched = typeof cache.fetched_at === 'string' ? Date.parse(cache.fetched_at) : NaN

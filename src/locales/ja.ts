@@ -142,5 +142,22 @@ export default {
   "effort encoded in the Cursor ID": "推論強度は Cursor ID に含まれます",
   "model not set": "モデル未設定",
   "none": "なし",
-  "not required": "不要"
+  "not required": "不要",
+  "OpenRouter balance": "OpenRouter 残高",
+  "Account balance": "アカウント残高",
+  "Key limit remaining": "キーの残り上限",
+  "Refresh balance": "残高を更新",
+  "Not checked": "未確認",
+  "Unavailable": "利用不可",
+  "No key limit": "キー上限なし",
+  "Management key required": "管理キーが必要",
+  "Read-only request; separate from the Fairway budget.": "読み取り専用リクエスト。Fairway 予算とは別です。",
+  "Last checked:": "最終確認：",
+  "Invalid key": "無効なキー",
+  "Request timed out": "リクエストがタイムアウトしました",
+  "Save an OpenRouter key in Settings.": "設定に OpenRouter キーを保存してください。",
+  "JEV disabled": "JEV 無効",
+  "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex カタログと CLI のバージョンが異なります。選択したアカウントのカタログを更新してから、このプロファイルを再確認してください。",
+  "Refresh coordinator profile": "コーディネーターのプロファイルを更新",
+  "Launch the coordinator before reading its analysis.": "分析を読む前にコーディネーターを起動してください。"
 } satisfies Record<Message, string>
