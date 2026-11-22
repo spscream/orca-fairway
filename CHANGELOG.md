@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.8
+
+- Refresh the OpenRouter balance periodically while the Fairway panel is open.
+- Retain the last known amounts after transient failures and show a warning in Statistics.
+
 ## 0.8.7
 
 - Use six icon buttons with tooltips and an active state for section navigation.
