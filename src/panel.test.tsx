@@ -505,3 +505,31 @@ test('an accepted legacy audit no longer displays a stale failed-check warning o
     assert.ok(tree.includes('Automatic execution is paused.')); assert.equal(actions, 0); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('Codex 6.2 upgrade changes only the exact legacy standard and deep profiles after Save', async () => {
+  const config = structuredClone(DEFAULT_CONFIG)
+  config.profiles[1]!.model = 'gpt-6.1-sol'
+  config.profiles[2]!.model = 'gpt-6-astra'
+  config.profiles.push({ ...config.profiles[1]!, id: 'custom' })
+  let saves = 0, launches = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), config }),
+    'fairway.config': input => {
+      const saved = validateConfig(JSON.parse(input.config))
+      assert.deepEqual(saved.profiles, [config.profiles[0], { ...config.profiles[1], model: 'gpt-6.2-sol' }, { ...config.profiles[2], model: 'gpt-6.2-astra' }, config.profiles[3]])
+      assert.equal(saved.fallback, config.fallback)
+      saves++
+      return { ...status(), config: saved }
+    },
+    'fairway.launch': () => { launches++; throw new Error('unexpected launch') },
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'settings' } } })
+  try {
+    await view.press({ text: 'Update standard and deep to Codex 6.2' })
+    assert.equal(saves, 0)
+    await view.press({ text: 'Save settings' })
+    assert.equal(saves, 1)
+    assert.equal(launches, 0)
+    assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})

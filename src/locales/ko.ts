@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "Update standard and deep to Codex 6.2": "standard 및 deep을 Codex 6.2로 업데이트",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "준비된 실행자 지시가 UTF-8 기준 65536바이트를 초과합니다.",
   "Read executor report": "실행자 보고서 읽기",
   "Executor report": "실행자 보고서",

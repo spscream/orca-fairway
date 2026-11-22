@@ -1,4 +1,5 @@
 export const en = {
+  "Update standard and deep to Codex 6.2": "Update standard and deep to Codex 6.2",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "The prepared executor prompt exceeds 65536 UTF-8 bytes.",
   "Read executor report": "Read executor report",
   "Executor report": "Executor report",

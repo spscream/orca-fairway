@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "Update standard and deep to Codex 6.2": "Mettre standard et deep à jour vers Codex 6.2",
   "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "La consigne préparée pour l’exécutant dépasse 65536 octets UTF-8.",
   "Read executor report": "Lire le rapport de l’exécutant",
   "Executor report": "Rapport de l’exécutant",

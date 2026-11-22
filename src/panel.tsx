@@ -60,6 +60,16 @@ function editProfile(update: Partial<Profile>): void {
   const profiles = config.profiles.map((p, i) => i === index ? { ...p, ...update } : p)
   change({ profiles, fallback: config.fallback === previous.id && update.id !== undefined ? update.id : config.fallback })
 }
+function codex62Replacement(profile: Profile): Profile {
+  if (profile.agent !== 'codex') return profile
+  if (profile.id === 'standard' && profile.model === 'gpt-6.1-sol' && profile.effort === 'medium') {
+    return { ...profile, model: 'gpt-6.2-sol', operatorConfirmed: false }
+  }
+  if (profile.id === 'deep' && profile.model === 'gpt-6-astra' && profile.effort === 'high') {
+    return { ...profile, model: 'gpt-6.2-astra', operatorConfirmed: false }
+  }
+  return profile
+}
 function addProfile(): void {
   const config = read(draft); if (config.profiles.length >= 24) return
   let n = 1; while (config.profiles.some(p => p.id === `profile-${n}`)) n++
@@ -153,6 +163,7 @@ function settingsForm() {
     </Card>
     <Card title={t("Allowed profiles")} description={t("Up to 24 profiles. Pair availability is verified separately before dispatch.")}>
       <Stack gap="sm">
+        {config.profiles.some(p => codex62Replacement(p) !== p) ? <Button onPress={() => change({ profiles: read(draft).profiles.map(codex62Replacement) })}>{t('Update standard and deep to Codex 6.2')}</Button> : null}
         <Select label={t("Profile to edit")} value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
         <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>{t("Add profile")}</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>{t("Delete profile")}</Button></Row>
         <Input label={t("Profile ID")} value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />

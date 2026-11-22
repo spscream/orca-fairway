@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.8.3 --json
+orca plugin install spscream/orca-fairway@v0.8.4 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -69,6 +69,8 @@ The panel's **Settings** tab contains the same preferences and a profile editor.
 ![Fairway settings, upper section](assets/settings-dark.png)
 
 The masked key field saves separately to Orca secret storage, never ordinary settings. Saving a dirty form replaces native settings with the displayed values. **Discard changes** reloads current values.
+
+**Codex 6.2:** New installations use `gpt-6.2-sol · medium` for `standard` and `gpt-6.2-astra · high` for `deep`. In existing installations, choose **Update standard and deep to Codex 6.2** and **Save settings** to replace the matching legacy pairs. Custom pairs can be edited individually.
 
 In Settings, assign each profile a **Profile level** or leave it **Unranked**. Legacy profiles remain unranked; levels are never inferred from model names. Save explicitly. Levels apply only below confidence 0.6 and do not claim measured model quality.
 
