@@ -1,4 +1,5 @@
 import { routingBudget, routingFailure } from './routing-budget.ts'
+import { atLeastFallback } from './profile-level.ts'
 import { digest, Engine } from './engine.ts'
 import { record, requireThat } from './config.ts'
 import { Workflows, type AutomaticReason, type AutomaticState, type Workflow } from './workflow.ts'
@@ -115,7 +116,10 @@ export class Automatic {
         // An excluded fallback must never silently become the first eligible profile.
         const fallbackAllowed = config.live && plan.reason === 'low_confidence_fallback'
           && plan.profile.id === config.fallback && step.allowedAgents.includes(plan.profile.agent)
-        if (plan.reason !== (config.live ? 'selected' : 'offline') && !fallbackAllowed) return this.mark(w, 'paused', routingFailure(plan.reason))
+        const rankedAllowed = config.live && plan.reason === 'low_confidence_ranked'
+          && step.allowedAgents.includes(plan.profile.agent)
+          && atLeastFallback(plan.profile, config.profiles.find(p => p.id === config.fallback && step.allowedAgents.includes(p.agent)))
+        if (plan.reason !== (config.live ? 'selected' : 'offline') && !fallbackAllowed && !rankedAllowed) return this.mark(w, 'paused', routingFailure(plan.reason))
         // Recheck authorization after routing, before the irreversible launch request.
         if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
         const latest = await this.engine.config()

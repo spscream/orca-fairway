@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.7.1 --json
+orca plugin install spscream/orca-fairway@v0.8.0 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -47,7 +47,7 @@ Coordinator descriptions accept up to **8192 UTF-8 bytes**, with an explicit byt
 
 The coordinator uses an explicitly selected profile, reads documentation with its own tools, asks questions in its Orca chat, and writes structured analysis to a private Fairway directory. JEV selects subtask profiles after approval. Only the displayed `routingBrief` goes to JEV; local context and execution instructions are kept separate.
 
-Preparation never starts agents. After reviewing the analysis, **Run plan automatically** approves that exact graph and authorizes its remaining steps in the same workspace. Fairway selects each profile, verifies it, launches one executor at a time, and accepts a bound result report only after Orca confirms the turn ended and every reported check passed. This is automatic acceptance of executor evidence, not independent review. Low JEV confidence uses the exact configured fallback when its agent is allowed for the step and its model/effort pair is verified, without a paid retry. An excluded or unverified fallback pauses the graph. Questions, failed checks, invalid reports, routing errors, exhausted JEV budget and uncertain dispatch pause the graph. Manual controls remain available.
+Preparation never starts agents. After reviewing the analysis, **Run plan automatically** approves that exact graph and authorizes its remaining steps in the same workspace. Fairway selects each profile, verifies it, launches one executor at a time, and accepts a bound result report only after Orca confirms the turn ended and every reported check passed. This is automatic acceptance of executor evidence, not independent review. Below confidence 0.6, the validated leading JEV choice is retained when both profiles have explicit levels and the leader is at least the fallback level (`routine < standard < deep`). Otherwise the exact configured fallback is used. Both paths require an allowed agent and a verified model/effort pair, without a paid retry. An excluded or unverified fallback pauses the graph. Questions, failed checks, invalid reports, routing errors, exhausted JEV budget and uncertain dispatch pause the graph. Manual controls remain available.
 
 Authorization is bounded to the graph (at most 8 launches), a 30-minute wait per step and a 2-hour window. These bounds stop new actions; a running agent must be stopped in Orca. Executor billing is separate from the JEV cap. Settings/key changes and worker restarts pause execution; loading or updating the plugin never resumes it automatically. A step already launched manually needs one manual review before subsequent steps can be automated. See [automatic execution](docs/automatic.md).
 
@@ -69,6 +69,8 @@ The panel's **Settings** tab contains the same preferences and a profile editor.
 ![Fairway settings, upper section](assets/settings-dark.png)
 
 The masked key field saves separately to Orca secret storage, never ordinary settings. Saving a dirty form replaces native settings with the displayed values. **Discard changes** reloads current values.
+
+In Settings, assign each profile a **Profile level** or leave it **Unranked**. Legacy profiles remain unranked; levels are never inferred from model names. Save explicitly. Levels apply only below confidence 0.6 and do not claim measured model quality.
 
 Up to 24 profiles are allowed. Defaults are unverified examples. Unknown fields, duplicate IDs or JSON keys, invalid types, and effort `ultra` are rejected. JEV returns a profile ID; launch parameters come exclusively from configuration. Confidence threshold 0.6 is an initial policy, not a measured success probability. Errors, low confidence, or a missing key use the configured fallback when eligible, otherwise the first eligible profile. No eligible profiles means refusal.
 

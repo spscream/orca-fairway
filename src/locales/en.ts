@@ -1,4 +1,9 @@
 export const en = {
+  "Profile level": "Profile level",
+  "Unranked": "Unranked",
+  "Assign a profile level or leave it unranked.": "Assign a profile level or leave it unranked.",
+  "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.": "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.",
+  "Low JEV confidence. The leading choice meets the fallback level.": "Low JEV confidence. The leading choice meets the fallback level.",
   "Low JEV confidence. Using the configured fallback profile.": "Low JEV confidence. Using the configured fallback profile.",
   "A local Orca workspace is required.": "A local Orca workspace is required.",
   "A short task description without secrets or source code": "A short task description without secrets or source code",

@@ -1,4 +1,5 @@
 import { launchReceipt } from './launch-receipt.ts'
+import { atLeastFallback } from './profile-level.ts'
 import { parseJson } from './json.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig, validateProfile, validateTask, validateCoordinatorPrompt } from './config.ts'
@@ -99,6 +100,7 @@ export class Engine {
               signal.throwIfAborted()
               costUsd = answer.cost; confidence = answer.confidence
               if (confidence >= .6) { profile = answer.profile; reason = 'selected' }
+              else if (atLeastFallback(answer.profile, candidates.find(p => p.id === c.fallback))) { profile = answer.profile; reason = 'low_confidence_ranked' }
               else reason = 'low_confidence_fallback'
             }, signal)
           }

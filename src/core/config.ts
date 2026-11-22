@@ -1,5 +1,6 @@
 import { COORDINATOR_TASK_BYTES, COORDINATOR_PROMPT_BYTES } from './limits.ts'
 import type { Config, Profile } from './types.ts'
+import { PROFILE_LEVELS } from './profile-level.ts'
 export class RouterError extends Error {
   constructor(public readonly code: string) { super(code); this.name = 'RouterError' }
 }
@@ -13,7 +14,10 @@ function exact(x: Record<string, unknown>, keys: string[]): boolean {
   return Object.keys(x).sort().join(',') === keys.sort().join(',')
 }
 export function validateProfile(x: unknown): Profile {
-  requireThat(record(x) && exact(x, ['id', 'agent', 'model', 'effort', 'description', 'operatorConfirmed']), 'invalid_profile')
+  // Legacy profiles stay unranked until the operator assigns a level.
+  if (record(x) && !Object.hasOwn(x, 'level')) x = { ...x, level: null }
+  requireThat(record(x) && exact(x, ['id', 'agent', 'model', 'effort', 'description', 'operatorConfirmed', 'level']), 'invalid_profile')
+  requireThat(x.level === null || PROFILE_LEVELS.includes(x.level as typeof PROFILE_LEVELS[number]), 'invalid_profile_level')
   requireThat(typeof x.id === 'string' && /^[a-z][a-z0-9_-]{0,39}$/.test(x.id), 'invalid_profile_id')
   requireThat(['codex', 'pi', 'cursor'].includes(x.agent as string), 'invalid_agent')
   requireThat(typeof x.model === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,119}$/.test(x.model) && !x.model.includes('..'), 'invalid_model')
@@ -54,8 +58,8 @@ export function validateCoordinatorPrompt(x: unknown): asserts x is string {
 export const DEFAULT_CONFIG: Config = {
   version: 1, live: false, unlimitedJev: false, execution: false, budgetMicrousd: 100_000, maxCalls: 5,
   fallback: 'standard', profiles: [
-    { id: 'routine', agent: 'codex', model: 'gpt-6-luna', effort: 'low', description: 'Small, local, well-specified task with direct checks.', operatorConfirmed: false },
-    { id: 'standard', agent: 'codex', model: 'gpt-6.1-sol', effort: 'medium', description: 'Ordinary investigation or implementation, several steps and moderate ambiguity.', operatorConfirmed: false },
-    { id: 'deep', agent: 'codex', model: 'gpt-6-astra', effort: 'high', description: 'Difficult architecture, distributed failures, protocol invariants and explicit tradeoffs.', operatorConfirmed: false }
+    { id: 'routine', level: 'routine', agent: 'codex', model: 'gpt-6-luna', effort: 'low', description: 'Small, local, well-specified task with direct checks.', operatorConfirmed: false },
+    { id: 'standard', level: 'standard', agent: 'codex', model: 'gpt-6.1-sol', effort: 'medium', description: 'Ordinary investigation or implementation, several steps and moderate ambiguity.', operatorConfirmed: false },
+    { id: 'deep', level: 'deep', agent: 'codex', model: 'gpt-6-astra', effort: 'high', description: 'Difficult architecture, distributed failures, protocol invariants and explicit tradeoffs.', operatorConfirmed: false }
   ]
 }

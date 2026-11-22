@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Profile level": "Niveau du profil",
+  "Unranked": "Non classé",
+  "Assign a profile level or leave it unranked.": "Attribuez un niveau au profil ou laissez-le non classé.",
+  "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.": "Les niveaux ne s’appliquent que sous le seuil de confiance : routine < standard < deep. Un niveau inconnu utilise le profil de secours.",
+  "Low JEV confidence. The leading choice meets the fallback level.": "La confiance de JEV est faible. Le premier choix atteint le niveau du profil de secours.",
   "Low JEV confidence. Using the configured fallback profile.": "La confiance de JEV est faible. Le profil de secours configuré est utilisé.",
   "A local Orca workspace is required.": "Un espace de travail Orca local est requis.",
   "A short task description without secrets or source code": "Brève description sans secrets ni code source",

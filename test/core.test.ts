@@ -44,8 +44,9 @@ test('invalid and injected choices never become models or arguments', async () =
     assert.equal(p.profile.id, 'standard'); assert.equal(p.reason, 'invalid_choice'); assert.equal(f.calls.length, 0)
   }
 })
-test('low confidence uses the declared fallback', async () => {
+test('low confidence with unranked profiles uses the declared fallback', async () => {
   const f = fixture({ live: true, transport: async (_u, o) => o.body ? response('deep', .4) : metadata })
+  f.config.profiles.forEach(p => { delete p.level })
   const p = await f.engine.plan('Synthetic task', 'codex', workspace)
   assert.equal(p.profile.id, 'standard'); assert.equal(p.reason, 'low_confidence_fallback')
 })

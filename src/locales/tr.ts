@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Profile level": "Profil düzeyi",
+  "Unranked": "Düzey atanmamış",
+  "Assign a profile level or leave it unranked.": "Bir profil düzeyi atayın veya atanmamış bırakın.",
+  "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.": "Düzeyler yalnızca güven eşiğinin altında geçerlidir: routine < standard < deep. Bilinmeyen düzeylerde yedek kullanılır.",
+  "Low JEV confidence. The leading choice meets the fallback level.": "JEV güveni düşük. Önde gelen seçimin düzeyi yedekten düşük değil.",
   "Low JEV confidence. Using the configured fallback profile.": "JEV güveni düşük. Yapılandırılmış yedek profil kullanılıyor.",
   "A local Orca workspace is required.": "Yerel bir Orca çalışma alanı gereklidir.",
   "A short task description without secrets or source code": "Gizli bilgi veya kaynak kod içermeyen kısa görev açıklaması",

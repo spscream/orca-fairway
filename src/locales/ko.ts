@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Profile level": "프로필 수준",
+  "Unranked": "미지정",
+  "Assign a profile level or leave it unranked.": "프로필 수준을 지정하거나 미지정으로 두세요.",
+  "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.": "수준은 신뢰도가 낮을 때만 적용됩니다: routine < standard < deep. 수준을 알 수 없으면 대체 프로필을 사용합니다.",
+  "Low JEV confidence. The leading choice meets the fallback level.": "JEV의 신뢰도가 낮습니다. 최상위 선택의 수준이 대체 프로필 이상입니다.",
   "Low JEV confidence. Using the configured fallback profile.": "JEV의 신뢰도가 낮습니다. 설정된 대체 프로필을 사용합니다.",
   "A local Orca workspace is required.": "로컬 Orca 작업 공간이 필요합니다.",
   "A short task description without secrets or source code": "비밀 정보나 소스 코드가 없는 짧은 작업 설명",

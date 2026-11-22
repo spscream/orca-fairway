@@ -2,6 +2,7 @@ import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
 import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
+import { PROFILE_LEVELS } from './core/profile-level.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
 import { budgetFromText } from './core/preferences.ts'
 import type { Status } from './protocol.ts'
@@ -30,7 +31,7 @@ function showError(e: unknown): void {
     invalid_budget: 'Budget must be nonnegative, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be a nonnegative integer.',
     invalid_profile_id: 'ID: start with a lowercase ASCII letter; use letters, digits, hyphens or underscores, up to 40 characters.',
     invalid_effort: 'Select a supported effort.', invalid_model: 'Enter an exact model ID without spaces or commands.', invalid_description: 'The profile description must contain 1–400 characters.',
-    duplicate_profile: 'Profile IDs must be unique.', invalid_fallback: 'Select an existing fallback profile.',
+    invalid_profile_level: 'Assign a profile level or leave it unranked.', duplicate_profile: 'Profile IDs must be unique.', invalid_fallback: 'Select an existing fallback profile.',
     invalid_pi_pair: 'For Pi, enter provider/model and a supported effort.', invalid_codex_pair: 'For Codex, enter a model without a provider prefix and a supported effort.',
     invalid_cursor_pair: 'Cursor requires an exact model ID; auto is not allowed.',
     coordinator_prompt_too_large: 'The prepared coordinator prompt exceeds 65536 UTF-8 bytes.',
@@ -60,7 +61,7 @@ function editProfile(update: Partial<Profile>): void {
 function addProfile(): void {
   const config = read(draft); if (config.profiles.length >= 24) return
   let n = 1; while (config.profiles.some(p => p.id === `profile-${n}`)) n++
-  change({ profiles: [...config.profiles, { id: `profile-${n}`, agent: 'codex', model: '', effort: 'medium', description: '', operatorConfirmed: false }] })
+  change({ profiles: [...config.profiles, { id: `profile-${n}`, agent: 'codex', model: '', effort: 'medium', description: '', level: null, operatorConfirmed: false }] })
   set(selectedProfile, config.profiles.length)
 }
 function removeProfile(): void {
@@ -156,6 +157,8 @@ function settingsForm() {
         <Select label={t("Profile agent")} value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
         <Input label={t("Profile model")} value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : t("Exact ID from the agent catalog")} onChange={model => editProfile({ model, operatorConfirmed: false })} />
         {profile.agent === 'cursor' ? <Text muted>{t("Cursor effort is encoded in its native model ID. No separate effort flag is sent; auto is not allowed.")}</Text> : <Select label={t("Profile effort")} value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value === 'none' ? t("none") : value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
+        <Select label={t("Profile level")} value={profile.level ?? 'unranked'} options={[{ value: 'unranked', label: t("Unranked") }, ...PROFILE_LEVELS.map(value => ({ value, label: value }))]} onChange={v => editProfile({ level: v === 'unranked' ? null : v as Profile['level'] })} />
+        <Text muted>{t("Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.")}</Text>
         <Textarea label={t("When to choose this profile")} value={profile.description} maxLength={400} rows={3} placeholder={t("Task class, complexity, and selection criteria; no secrets.")} onChange={description => editProfile({ description })} />
         {profile.agent === 'pi' ? <Switch label={t("I verified this pair in Pi")} checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>{t("Agent metadata verification is required. Manual confirmation cannot bypass it.")}</Text>}
         <Select label={t("Fallback profile")} value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || t("No ID") }))} onChange={fallback => change({ fallback })} />

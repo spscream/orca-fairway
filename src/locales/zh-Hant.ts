@@ -1,5 +1,10 @@
 import type { Message } from './en.ts'
 export default {
+  "Profile level": "設定檔等級",
+  "Unranked": "未分級",
+  "Assign a profile level or leave it unranked.": "請指定設定檔等級或保持未分級。",
+  "Levels apply only below the confidence threshold: routine < standard < deep. Unknown levels use the fallback.": "等級僅在信賴度低於門檻時適用：routine < standard < deep。等級未知時使用備用設定檔。",
+  "Low JEV confidence. The leading choice meets the fallback level.": "JEV 信賴度較低。首選項的等級不低於備用設定檔。",
   "Low JEV confidence. Using the configured fallback profile.": "JEV 信賴度較低。正在使用已設定的備用設定檔。",
   "A local Orca workspace is required.": "需要本機 Orca 工作區。",
   "A short task description without secrets or source code": "不含機密或原始碼的簡短任務描述",

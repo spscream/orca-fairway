@@ -7,6 +7,7 @@ export interface Profile {
   effort: Effort | null
   description: string
   operatorConfirmed: boolean
+  level?: 'routine' | 'standard' | 'deep' | null
 }
 export interface Config {
   version: 1

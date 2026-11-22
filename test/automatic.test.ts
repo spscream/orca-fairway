@@ -7,7 +7,7 @@ import { Workflows, type Analysis, type Artifacts, type Workflow } from '../src/
 import { validateStepResult } from '../src/core/results.ts'
 import type { Store, Runtime, Transport } from '../src/core/types.ts'
 const workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' as const }
-function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean; confidence?: number; transportError?: string } = {}) {
+function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean; confidence?: number; choice?: string; transportError?: string } = {}) {
   const config = structuredClone(DEFAULT_CONFIG); config.live = true; config.execution = options.execution ?? true; config.maxCalls = options.maxCalls ?? 5
   const memory = new Map<string, unknown>([['config', config]]), reports = new Map<string, string>()
   const store: Store = { get: async k => structuredClone(memory.get(k) ?? null), set: async (k, v) => { memory.set(k, structuredClone(v)) } }
@@ -17,7 +17,7 @@ function fixture(options: { key?: string | null; maxCalls?: number; invalidChoic
   const transport: Transport = async (_url, args) => {
     if (!args.body) return { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } } }
     decisions++; if (options.transportError) throw new RouterError(options.transportError)
-    const ids = Object.keys(JSON.parse(args.body).questions.profile.criteria), choice = options.invalidChoice ? '; synthetic injection' : ids[decisions % ids.length]!
+    const ids = Object.keys(JSON.parse(args.body).questions.profile.criteria), choice = options.invalidChoice ? '; synthetic injection' : options.choice ?? ids[decisions % ids.length]!
     return { answers: { profile: { type: 'choice', choice, confidence: options.confidence ?? 1, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: 0.000001 } }
   }
   let analysis: Analysis = { version: 1, summary: 'Synthetic analysis', assumptions: [], questions: [], sources: [], steps: ['first', 'second'].map((id, i) => ({ id, title: 'Synthetic step', instructions: 'Perform a synthetic check.', acceptance: 'Synthetic check passes.', context: '', routingBrief: 'Synthetic bounded work.', allowedAgents: ['codex'], dependsOn: i ? ['first'] : [] })) }
@@ -172,4 +172,28 @@ test('explicit unlimited mode allows continuation after prior caps without reset
   await f.automatic.start(id, workspace); await f.automatic.tick()
   assert.equal(f.launches, 1); assert.equal(f.decisions, 1)
   assert.deepEqual(await f.engine.ledger(), { calls: 6, reservedMicrousd: 78648 })
+})
+
+test('low-confidence leaders at or above the fallback level run once; lower or unknown levels use the exact reserve', async () => {
+  for (const [choice, unranked, expected, reason] of [
+    ['deep', false, 'deep', 'low_confidence_ranked'],
+    ['standard', false, 'standard', 'low_confidence_ranked'],
+    ['routine', false, 'standard', 'low_confidence_fallback'],
+    ['deep', true, 'standard', 'low_confidence_fallback']
+  ] as const) {
+    const f = fixture({ confidence: .4, choice })
+    if (unranked) f.config.profiles.find(p => p.id === choice)!.level = null
+    const id = await f.create(); await f.automatic.tick(); assert.equal(f.launches, 0)
+    await f.automatic.start(id, workspace); await f.automatic.tick(); await f.automatic.tick()
+    const w = await f.flows.get(id, workspace)
+    assert.equal(w.runs.first!.plan!.profile.id, expected); assert.equal(w.runs.first!.plan!.reason, reason)
+    assert.equal(w.automatic?.state, 'running'); assert.equal(f.launches, 1); assert.equal(f.decisions, 1)
+  }
+})
+test('a ranked leader still needs verified metadata and cannot bypass cancellation', async () => {
+  const f = fixture({ confidence: .2, choice: 'deep' }), id = await f.create()
+  f.runtime.verify = async () => ({ verified: false, source: 'synthetic_unavailable' })
+  await f.automatic.start(id, workspace); await f.automatic.tick()
+  assert.equal((await f.flows.get(id, workspace)).automatic?.reason, 'unverified'); assert.equal(f.launches, 0)
+  await f.automatic.pause(); await f.automatic.tick(); assert.equal(f.launches, 0)
 })

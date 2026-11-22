@@ -436,3 +436,34 @@ test('automatic low-confidence fallback is disclosed without dispatching on pane
     assert.equal(actions, 0); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('profile levels require an explicit save, preserve unrelated settings and support unranked legacy profiles', async () => {
+  let config = structuredClone(DEFAULT_CONFIG), actions = 0, saves = 0
+  delete config.profiles[0]!.level
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), config }),
+    'fairway.config': input => { config = validateConfig(JSON.parse(input.config)); saves++; return { ...status(), config } },
+    'fairway.workflow.action': () => { actions++; throw new Error('must not execute') }
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'settings' } } })
+  try {
+    assert.equal(view.find({ label: 'Profile level' })?.props.value, 'unranked')
+    await view.select({ label: 'Profile level' }, 'routine'); assert.equal(saves, 0)
+    await view.press({ text: 'Save settings' }); assert.equal(config.profiles[0]!.level, 'routine')
+    assert.equal(config.fallback, DEFAULT_CONFIG.fallback); assert.equal(config.live, false); assert.equal(config.execution, false)
+    await view.select({ label: 'Profile level' }, 'unranked'); await view.press({ text: 'Save settings' })
+    assert.equal(config.profiles[0]!.level, null); assert.equal(saves, 2); assert.equal(actions, 0); assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})
+test('automatic ranked low-confidence selection is disclosed without any launch on panel load', async () => {
+  const workflow = auditedWorkflow('completed')
+  workflow.runs.two = { state: 'submitted', plan: { ...example, profile: DEFAULT_CONFIG.profiles[2]!, state: 'submitted', reason: 'low_confidence_ranked', confidence: .4 }, review: null, result: { path: '/synthetic-private/result.json', token: 'synthetic' } }
+  workflow.automatic = { state: 'running', reason: null, configHash: 'synthetic', approvedHash: workflow.approvedHash!, expiresAt: Date.now() + 100000, dispatches: 2, limit: 2 }
+  let actions = 0
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(true), workflow }), 'fairway.workflow.action': () => { actions++; throw new Error('must not execute') } } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    assert.ok(JSON.stringify(view.tree()).includes('Low JEV confidence. The leading choice meets the fallback level.'))
+    assert.equal(actions, 0); assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})
