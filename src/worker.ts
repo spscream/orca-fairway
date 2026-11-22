@@ -104,7 +104,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }))
     orca.commands.register('fairway.status', async () => {
       const c = await engine.config(), l = await engine.ledger()
-      return `Fairway: ${c.live ? 'JEV включён' : 'без сети'}, ${c.execution ? 'явный запуск разрешён' : 'наблюдение'}, попыток ${l.calls}/${c.maxCalls}. Откройте панель Fairway.`
+      return `Fairway: ${c.live ? 'JEV enabled' : 'offline'}, ${c.execution ? 'explicit execution allowed' : 'shadow mode'}, attempts ${l.calls}/${c.maxCalls}. Open the Fairway panel.`
     })
   }
 }

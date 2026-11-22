@@ -1,125 +1,117 @@
 # Fairway for Orca
 
-Плагин Orca, который подбирает разрешённый профиль **агент + модель + усилие** через JEV и позволяет явно запустить задачу штатным способом Orca. Поддержаны адаптеры Codex, Pi и Cursor Agent. Изменять исходный код Orca не требуется.
+An Orca plugin that uses JEV to select an allowlisted **agent + model + effort** profile, then explicitly dispatches the task through Orca. Supports Codex, Pi, and Cursor Agent without changing Orca itself.
 
-**По умолчанию: без сети и в режиме наблюдения.** Подбор профиля сам по себе никогда не запускает исполнителя. Примерные профили не доказывают доступность моделей на вашем компьютере.
+**Offline and shadow mode by default.** Selecting a profile never starts an agent. Example profiles do not prove that a model is available on your machine.
 
-![Панель Fairway в режиме наблюдения](assets/panel-dark.png)
+![Fairway in shadow mode](assets/panel-dark.png)
 
-## Установка
+## Install
 
-Требуется Orca **1.4.265+**. Для разработки — Node.js **22+**. Сам плагин не имеет сторонних зависимостей исполнения и не требует сборки: Orca загружает TypeScript непосредственно.
-
-Установите выпуск напрямую из GitHub через CLI Orca:
+Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.3.0 --json
+orca plugin install spscream/orca-fairway@v0.3.1 --json
 ```
 
-Первая команда покажет состав доступа и завершится с `approval_required`. Проверьте его и выполните выданную Orca команду с точным `--approve` отпечатком. Установка не выполняет `npm install` и не включает платные запросы. На Linux вне терминала Orca используйте `orca-ide`, а не системный экранный диктор `orca`. Добавление стороннего каталога не требуется.
+The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
 
-Перед включением Orca покажет доступ плагина: свой фоновой процесс, собственные хранилища данных и секретов, собственные настройки Orca, метаданные рабочих пространств и запуск агентов. Доверенный процесс работает с правами вашего пользователя и вызывает CLI Orca. Это не песочница для недоверенного кода.
+Access: a trusted Node worker running as your user, own storage and secrets, own Orca settings, workspace metadata, and agent dispatch. The worker invokes the Orca CLI; it is not a sandbox for untrusted code.
 
-## Первый запуск
+## First task
 
-1. Откройте локальное рабочее пространство и панель **Fairway**.
-2. Введите короткую постановку без секретов и исходного кода.
-3. Нажмите **Подобрать профиль**. В исходных настройках выбирается резервный профиль без сети.
-4. Проверьте модель, усилие и источник подтверждения. Неподтверждённую пару запустить нельзя.
-5. Если нужен JEV, сохраните его ключ в поле **Ключ OpenRouter** на вкладке настроек и включите «Разрешить платные запросы JEV».
-6. Для явного запуска включите «Разрешить явный запуск через Orca», сохраните настройки, подберите профиль заново и нажмите **Запустить через Orca**.
+1. Open a local Orca workspace and the **Fairway** panel.
+2. In **Task**, enter a short description without secrets or source code.
+3. Click **Select profile**. Defaults select a fallback without network access.
+4. Review the model, effort, and verification source. Unverified pairs cannot launch.
+5. For JEV decisions, save an **OpenRouter key**, enable **Allow paid JEV requests**, and click **Save settings**.
+6. To dispatch, enable **Allow explicit execution through Orca**, save, select a profile again, then click **Launch through Orca**.
 
-В JEV отправляются только введённое описание и настроенные карточки профилей. Файлы проекта, предыдущие сообщения, инструменты и вложения автоматически не собираются. Полная постановка в этой версии совпадает с введённым описанием и передаётся выбранному агенту после явного запуска.
+Only the entered description and configured profile cards go to JEV. Project files, conversation history, tools, and attachments are not collected automatically. The entered task is passed to the selected agent only after explicit dispatch. `live` permits paid decisions; `execution` permits the separate launch button. Neither enables automatic execution or changes ordinary Orca chats and global agent settings.
 
-`live` разрешает платное решение, `execution` — отдельную кнопку запуска. Ни один из этих параметров не включает автоматический запуск при подборе. Обычные чаты Orca и глобальные настройки агентов не меняются.
+## Analyze first, then select agents
 
-## Анализ задачи и подзадачи
+The **Workflow** tab provides: task and references → coordinator → approved analysis → per-subtask profile selection → explicit dispatch → result review.
 
-Вкладка **План** реализует последовательность: задача и ссылки → координатор → принятый анализ → подбор профиля каждой подзадачи → явный запуск → подтверждение результата.
+The coordinator uses an explicitly selected profile, reads documentation with its own tools, asks questions in its Orca chat, and writes structured analysis to a private Fairway directory. JEV selects subtask profiles after approval. Only the displayed `routingBrief` goes to JEV; local context and execution instructions are kept separate.
 
-Координатор использует выбранный владельцем профиль. Он читает документацию и задаёт уточняющие вопросы в своём чате Orca, затем записывает структурированный анализ в собственную приватную папку Fairway. Модели подзадач выбирает JEV после принятия анализа. В подбор передаётся только показанное отдельное описание сложности; локальный контекст и инструкции исполнителя не отправляются автоматически.
+Preparing or approving analysis never starts agents. Every launch requires a separate button and enabled execution. Dependent steps unlock after you review and accept predecessor results. This release runs steps sequentially within a workflow; autonomous scheduling and interception of internal subagents are not implemented.
 
-Подготовка не запускает координатора. Чтение и принятие анализа не запускают исполнителей. Каждый запуск требует отдельной кнопки и включённого разрешения исполнения. Зависимые шаги открываются после подтверждения результата предыдущих. Это первый последовательный контур; автономный диспетчер и перехват внутренних субагентов не реализованы.
+See [workflow instructions](docs/workflows.md) and the [roadmap](docs/roadmap.md).
 
-Пошаговая инструкция и границы: [docs/workflows.md](docs/workflows.md). Дальнейшие этапы: [docs/roadmap.md](docs/roadmap.md).
+## Settings and profiles
 
-## Настройки в интерфейсе Orca
+**Settings → Plugins → Fairway** exposes JEV requests, explicit execution, total budget in USD, and the attempt limit. Native settings apply immediately. Version 0.1.0 settings migrate once without resetting accounting.
 
-Основные параметры доступны в **Settings → Plugins → Fairway**: платный подбор JEV, разрешение явного запуска, общий бюджет в USD и лимит попыток. В штатных настройках изменения применяются сразу. Существующие параметры версии 0.1.0 переносятся при первом запуске, учёт расходов сохраняется.
+The panel's **Settings** tab contains the same preferences and a profile editor. Changes in this form apply with **Save settings**; no JSON editing is required.
 
-На вкладке **Настройки** панели Fairway те же параметры доступны вместе с редактором профилей. Изменения этой формы применяются кнопкой **Сохранить настройки**; редактировать JSON не нужно.
+1. Select a profile or click **Add profile**.
+2. Enter a unique ID, agent, and exact model ID.
+3. Select an effort for Codex/Pi. Cursor effort is encoded in its native model ID.
+4. Describe when JEV should choose the profile.
+5. For Pi, confirm the pair after checking it yourself. Changing its model or effort clears confirmation.
+6. Choose a **Fallback profile** and save. Deleting the fallback selects the first remaining profile.
 
-1. Выберите профиль или нажмите **Добавить профиль**.
-2. Задайте уникальный идентификатор, агента и точную модель.
-3. Для Codex/Pi выберите усилие. Для Cursor оно входит в нативный идентификатор модели.
-4. Опишите, для каких задач выбирать профиль.
-5. Для Pi отдельно подтвердите проверенную пару. Изменение модели или усилия сбрасывает подтверждение.
-6. Выберите резервный профиль и сохраните настройки. При удалении резервного автоматически выбирается первый оставшийся профиль.
+![Fairway settings, upper section](assets/settings-dark.png)
 
-![Форма настроек Fairway, верхняя часть](assets/settings-dark.png)
+The masked key field saves separately to Orca secret storage, never ordinary settings. Saving a dirty form replaces native settings with the displayed values. **Discard changes** reloads current values.
 
-Ключ OpenRouter вводится отдельным скрытым полем и сохраняется отдельной кнопкой в защищённое хранилище. В обычные настройки Orca он не записывается. Сохранение формы с несохранёнными изменениями заменяет штатные значения показанными в ней; для загрузки актуальных значений без сохранения черновика нажмите **Отменить изменения**.
+Up to 24 profiles are allowed. Defaults are unverified examples. Unknown fields, duplicate IDs or JSON keys, invalid types, and effort `ultra` are rejected. JEV returns a profile ID; launch parameters come exclusively from configuration. Confidence threshold 0.6 is an initial policy, not a measured success probability. Errors, low confidence, or a missing key use the configured fallback when eligible, otherwise the first eligible profile. No eligible profiles means refusal.
 
-Предустановленные профили — примеры, а не подтверждение поддержки модели. Для разных классов задач добавьте несколько профилей с разными описаниями. Максимум — 24. Неизвестные поля, повторные идентификаторы, дубликаты ключей JSON, недопустимые типы и усилие `ultra` отклоняются.
+Saving settings cancels pending decisions. Changed tasks, effective configuration, workspace, or a ten-minute expiry require selecting a profile again.
 
-JEV выбирает **идентификатор профиля**, а параметры запуска берутся только из настроек. Порог уверенности 0.6 — предварительная политика, а не измеренная вероятность успеха. При ошибке, низкой уверенности или отсутствии ключа выбирается `fallback`, если он относится к выбранному агенту; иначе первый профиль этого агента. Если профилей агента нет, операция останавливается.
+## Adapter verification
 
-Сохранение настроек отменяет незавершённые запросы и делает старые решения непригодными для запуска. Изменение задачи, рабочего пространства или истечение десяти минут также требует нового подбора.
-
-## Проверка адаптеров
-
-| Агент | Параметры | Проверка перед запуском |
+| Agent | Parameters | Pre-dispatch verification |
 | --- | --- | --- |
-| Codex | `--model`, `--effort` через Orca | Точная пара в несекретном `models_cache.json`, возраст не более 7 суток и совпадение версии кеша с `codex --version` |
-| Pi | `provider/model`, усилие Orca переводит в `--thinking` | Явное утверждение владельца `operatorConfirmed: true`; расширение Auto дополнительно проверяет наличие модели в реестре Pi |
-| Cursor | Точный нативный идентификатор модели, `effort: null` | Наличие идентификатора в `cursor-agent --list-models`; усилие, если оно есть, уже зашито в идентификатор |
+| Codex | Orca `--model` and `--effort` | Exact pair in non-secret `models_cache.json`, no older than 7 days, matching `codex --version` |
+| Pi | `provider/model`; Orca maps effort to `--thinking` | Explicit `operatorConfirmed: true`; the Auto extension also checks the Pi model registry |
+| Cursor | Exact native alias, `effort: null` | Exact alias from `cursor-agent --list-models`; effort, if any, is part of that alias |
 
-Для Cursor используйте `agent: "cursor"`, точный идентификатор из его списка, `effort: null`. `auto` исключён, поскольку не фиксирует конкретную модель. Для Pi используйте `agent: "pi"`, `model: "provider/model"` и одно из `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` после собственной проверки пары. Для Codex и Cursor `operatorConfirmed` не обходит проверку каталога.
+Cursor `auto` is excluded because it does not fix a concrete model. Pi efforts: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, after checking the pair. Manual confirmation cannot bypass Codex or Cursor catalogs.
 
-Несовпадение версии кеша Codex блокирует запуск. Откройте список моделей нужной версии Codex обычным способом, обновите его метаданные и повторите подбор. Плагин сам не запускает чат для обновления кеша и не читает файлы авторизации. Каталог не гарантирует наличие квоты или право аккаунта на модель; возможный отказ обрабатывает штатный агент.
+A mismatched Codex catalog version blocks dispatch. Refresh model metadata through the appropriate Codex version and select again. Fairway does not start a chat to refresh it or read authentication files. A catalog entry does not prove account entitlement or quota.
 
-Успешный ответ CLI Orca означает **принятый запуск**, а не завершение задачи и не доказательство фактически отвечавшей модели. Поля наблюдаемой модели/усилия остаются неизвестными. Если результат запуска потерян, решение больше не используется: сначала нужно проверить Orca, а не запускать задачу ещё раз вслепую.
+An accepted Orca dispatch does not prove task completion or the model that actually responded. Observed model/effort fields remain unknown. A lost dispatch response consumes the decision: inspect Orca before any new launch.
 
 ## Pi Auto
 
-Дополнительное расширение регистрирует виртуальную модель `fairway/auto`; оно не проксирует генерацию. Решение запрашивается один раз и закрепляется на ветке сессии. Авторизацию и вызов физической модели выполняет Pi.
+The optional extension registers `fairway/auto`. It routes once and pins the physical pair to the session branch; Pi retains authentication and generation. It sends only an explicit `/fairway-brief`, never expanded `@files`, history, or source from the current message. See [Pi setup](docs/pi.md).
 
-Расширение передаёт **только явно заданное краткое описание** через `/fairway-brief`, а не раскрытые `@files`, историю или текущий текст с исходным кодом. Порядок подключения, ограничения и пример: [docs/pi.md](docs/pi.md).
+## Budget, network, and data
 
-## Бюджет, данные и сеть
+Decision model: `typesafe/jev-1.14`; endpoint: `https://openrouter.ai/api/alpha/decisions`. Before each POST, public metadata must confirm bounded input pricing, free output, and context length 262144. Requests specify `provider.max_price` of $0.05/M input and $0 output, with `allow_fallbacks: false`. Unknown pricing prevents the POST.
 
-Фиксированная модель решения — `typesafe/jev-1.14`, endpoint — `https://openrouter.ai/api/alpha/decisions`. Перед каждым POST проверяются актуальные публичные метаданные цены, нулевая цена выхода и контекст 262144 токена. В запросе заданы `provider.max_price` $0.05/M на вход и $0 на выход, `allow_fallbacks: false`. При неопределённой цене POST не выполняется.
+Each attempt permanently reserves **13108 microdollars ($0.013108)** before network access: the rounded-up cost of the full context at the price ceiling. Defaults: 5 attempts and $0.10. Hard configuration bounds: $10 and 100 attempts. Errors and timeouts do not refund reservations; saving or restarting does not reset them. This accounts for JEV decisions only. Coordinator and executor costs belong to their agents.
 
-До сети резервируется **13108 микродолларов ($0.013108)** на попытку — округлённая вверх стоимость полного контекста по верхней цене. По умолчанию разрешены 5 попыток и бюджет $0.10. Настройки ограничены $10 и 100 попытками. Резерв не возвращается после ошибки или тайм-аута и не обнуляется при сохранении настроек или перезапуске процесса. Это учёт только решений JEV; исполнение Codex/Pi/Cursor использует собственный способ оплаты агента.
+Limits: 16 KiB request, 4096-byte UTF-8 task, 64 KiB response, 8-second network stage. Redirects and automatic paid retries are disabled.
 
-Запрос — не более 16 КиБ, описание — 4096 байт UTF-8, ответ — 64 КиБ, сетевой этап — 8 секунд. Перенаправления запрещены. Автоматических повторов платных запросов нет.
+The JEV key stays in own Orca secret storage. Fairway does not read `.env` files, extract subscription credentials, or move authentication across providers. Child CLIs do not inherit `OPENROUTER_API_KEY` or `OPENROUTER_TOKEN`; configure their own authentication separately if needed.
 
-Ключ JEV хранится только в собственном защищённом хранилище Orca. Плагин не читает `.env`, не извлекает токены подписок и не переносит авторизацию между провайдерами. Переменные `OPENROUTER_API_KEY` и `OPENROUTER_TOKEN` не передаются дочерним CLI. Если исполнителю нужен OpenRouter, настройте его собственную авторизацию отдельно.
+Audit storage keeps 200 metadata events; **Audit log** displays the latest 20. No task text, HTTP bodies, process output, or keys are logged. Routing plans store task/workspace hashes rather than task text. Workflow data separately contains the original task, analysis, instructions, and accepted summaries, stored locally. Analysis files live under `~/.config/fairway-for-orca/workflows/` without automatic deletion. Removing plugin data removes local accounting, not the account-wide OpenRouter limit.
 
-Журнал содержит последние 200 событий с идентификаторами профилей, моделью, усилием, состоянием, стоимостью и резервом. Вкладка **Журнал** показывает последние 20 событий. Текст задачи, HTTP-тела, вывод процессов и ключи не записываются. Сами настройки и решения сохраняются в собственном хранилище плагина; планы содержат контрольные суммы задачи и рабочего пространства, без исходного текста. Удаление данных плагина также удаляет локальный учёт бюджета — это не лимит всего аккаунта OpenRouter.
-
-## Разработка и проверки
+## Development
 
 ```sh
 npm ci --ignore-scripts
 npm test
 npm run types:orca
 npm run typecheck
+npm run typecheck:core
 npm run test:orca
 npm run check:orca
 npm run validate
+npm run audit:public
 ```
 
-`npm test` не требует установленной Orca. Проверки используют вымышленные задачи, имитации сети и запуска; тесты Pi используют только собственный временный локальный HTTP-сервис. Исполнители не запускаются, существующие ключи не читаются. Типы и UI-проверки соответствуют локальной Orca.
+`npm test` works without Orca. Tests use synthetic tasks, mocked network/dispatch, and temporary local HTTP/filesystem fixtures. No real agents start and no existing credentials are read. Types and UI checks match the installed Orca.
 
-Команды проверки Orca сначала подготавливают `.orca/plugin` из проверенного публичного состава. Это исключает `node_modules` и локальные материалы из содержимого плагина. Для просмотра при разработке выполните `npm run stage:plugin`, затем `node scripts/orca.mjs plugin dev watch .orca/plugin --check --shot .orca/shots --json`; после правок повторяйте подготовку. Установка из опубликованного Git-репозитория уже получает чистый состав.
+Orca checks stage the audited public surface in `.orca/plugin`, excluding `node_modules` and private research. For visual development, run `npm run stage:plugin`, then `node scripts/orca.mjs plugin dev watch .orca/plugin --check --shot .orca/shots --json`; restage after edits. Git installation receives the clean public files directly.
 
-В режиме «План» отдельно сохраняются исходная постановка, анализ, инструкции подзадач и принятые краткие результаты. Они локальны и не являются журналом аудита. Файлы анализа находятся в `~/.config/fairway-for-orca/workflows/`; автоматического удаления сейчас нет.
+See [architecture](docs/architecture.md), [verification report](REPORT.md), and [security boundaries](SECURITY.md).
 
-Подробнее: [архитектура](docs/architecture.md), [отчёт первого выпуска](REPORT.md), [границы безопасности](SECURITY.md).
+## Release status
 
-## Состояние 0.3.0
+0.3.1 makes the interface and documentation English without changing settings keys, persisted data, protocols, or routing behavior. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
-Добавлен последовательный контур координатора и подзадач. Настройки доступны в штатном интерфейсе Orca и в форме панели Fairway. Реализованы панель, строгий выбор, резервирование бюджета, отмена, защита от повторного запуска, адаптеры и расширение Pi. Проверены автономные тесты и сценарии панели Orca. Живые сквозные запуски всех адаптеров и платный запрос из нового плагина ещё не проверены. Экономия и превосходство выбранных моделей не заявляются.
-
-Пока не поддержаны удалённые рабочие пространства, мобильная панель, прозрачный Auto в обычном списке моделей Orca, универсальный HTTP-прокси и автоматическая смена модели после каждого инструмента. Непроверенная поддержка не объявляется работающей.
+Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.

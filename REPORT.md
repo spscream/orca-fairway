@@ -1,95 +1,60 @@
-# Fairway for Orca — отчёт 0.3.0
+# Fairway for Orca — verification report 0.3.1
 
-Реализован первый последовательный контур «координатор → анализ → принятие плана → выбор профиля подзадачи → явный запуск Orca → подтверждение результата». Вкладка «План» работает со структурированным анализом из собственной приватной папки. Координатор получает фиксированный разрешённый профиль; после анализа JEV выбирает среди разрешённых агентов, моделей и усилий для каждого шага.
+This release makes the plugin interface and public documentation English. It translates panel labels, native Orca setting titles/descriptions, fixed error messages, status output, UI test locators, and synthetic check fixtures. It does not change protocol identifiers, configuration keys, persisted user content, permissions, decision policy, accounting, or dispatch behavior. Existing tasks and user-written profile descriptions retain their original language.
 
-## Проверки 0.3.0
-
-- `npm run typecheck` и `npm run typecheck:core` — успешно.
-- `npm test` — **40/40**, все задачи и внешние ответы синтетические.
-- `npm run test:orca` — **52/52**, включая панель и обработчики фонового процесса.
-- `npm run check:orca` — **9 сценариев**, без замечаний и предупреждений.
-- `npm run validate` — корректный манифест и подготовленный состав.
-- `npm run audit:public` и `git diff --check` — успешно перед публикацией.
-
-Новые тесты проверяют отсутствие запуска при подготовке, фиксированный профиль координатора без JEV, строгий формат анализа, циклы и неизвестные зависимости, лишние поля выбора модели, уточняющие вопросы, недоступные и пропущенные источники, подбор среди разных агентов, передачу JEV только `routingBrief`, обязательную проверку предшественников, конкурентный запуск один раз, восстановление состояния, неизвестный исход без повтора, неизменность анализа, смену пространства, отмену, общий бюджет, приватные файлы, символические ссылки и ограничение размера. Отказ до сохранённого намерения исполнения позволяет новый подбор; неопределённое фактическое исполнение блокирует повтор.
-
-Внешний вид вкладки проверен обычным снимком Orca: 502×959, `settled: true`, `errors: []`, `pendingRequests: 0`. В отдельной подготовленной копии изменена только начальная вкладка с отдельным ключом состояния; после просмотра копия выгружена. Снимок: `assets/workflow-dark.png`. Итоговые проверки используют заново подготовленный исходный состав. Девять сценариев включают вопросы, подобранный шаг и неизвестный исход.
-
-## Расходы и оставшиеся проверки
-
-Платных запросов JEV: **0**, стоимость: **$0**. Реальные координаторы, исполнители и дополнительные AI-агенты при реализации и тестах не запускались. Проверено только наличие `OPENROUTER_API_KEY` в окружении: переменная отсутствует. Живая проверка JEV заблокирована отсутствием ключа в окружении. Файлы секретов и другие рабочие репозитории не читались.
-
-Живая запись `analysis.json` координатором и выполнение подзадач ещё не проверены. Выделенный анализатор не встроен в плагин: анализ выполняет явно запущенный агент Orca в пределах его разрешений. Чтение источников заявляется агентом, не доказывается метаданными. Результаты принимает владелец после проверки. Плагин не перехватывает внутренних субагентов и не является песочницей для их инструментов.
-
-Новые данные режима «План» — исходная задача, анализ и краткие результаты — сохраняются локально отдельно от аудита; журнал остаётся метаданным. Автоматического удаления артефактов нет. Исполнение последовательное внутри одного плана; глобальной блокировки папки, изолированных копий и автономного выполнения всего графа нет. Подтверждённый профиль не доказывает право аккаунта, квоту или фактически ответившую модель.
-
-Использование: [docs/workflows.md](docs/workflows.md). Следующие этапы: [docs/roadmap.md](docs/roadmap.md). Команды установки и настроек: [README.md](README.md).
-
-## Проверка выпуска 0.2.0
-
-Добавлены штатные поля Settings → Plugins → Fairway: запросы JEV, явное исполнение, бюджет USD и лимит попыток. Редактор JSON в панели заменён формой профилей с добавлением, удалением, резервным вариантом и проверкой числовых полей. Ключ остаётся в собственном защищённом хранилище Orca; обычные настройки его не содержат.
-
-Данные 0.1.0 переносятся один раз. Режимы и лимиты читаются из `orca.settings` перед каждой операцией. Изменение штатных настроек отменяет активные запросы; устаревший план не отображается и не проходит проверку перед запуском. Изменение модели или усилия Pi сбрасывает ручное подтверждение. Сохранение формы не обнуляет накопленный резерв.
-
-Проверки 0.2.0: **26/26** автономных тестов и **36/36** при запуске через Orca. Пройдены `npm run typecheck`, `npm run typecheck:core`, `npm test`, `npm run test:orca`, `npm run check:orca`, `npm run validate`, `npm run audit:public`. Пять сценариев без ошибок и предупреждений. Новые проверки охватывают форму, ограничения бюджета, внедрение команды в модель, редактор Cursor, сброс подтверждения Pi, миграцию настроек и отключение исполнения во время ожидающей проверки.
-
-Форма визуально проверена в тёмной теме: 502×959, `settled: true`, `errors: []`, `pendingRequests: 0`. Для снимка в отдельной подготовленной копии изменена только начальная вкладка на «Настройки» с отдельным ключом её состояния; действия ввода в окне пользователя не выполнялись. Снимок верхней части формы: `assets/settings-dark.png`. После просмотра копия выгружена; итоговые тесты выполняются на заново подготовленном неизменённом составе. Светлая тема и ручная проверка штатной страницы Settings отдельно не выполнялись.
-
-Новых запросов JEV: **0**, расходы: **$0**. Реальные агенты не запускались. Дополнительное право `settings:own` необходимо для настроек Orca; остальные права сохранены. Живая проверка JEV и сквозной запуск агентов по-прежнему не выполнены. При обновлении с 0.1.0 Orca запросит подтверждение нового права.
-
-## Проверка первого выпуска 0.1.0
-
-Реализован отдельный плагин без изменений исходного Orca. Панель и общая логика работают на TypeScript; зависимостей исполнения нет. Включены адаптеры штатного запуска Codex/Pi/Cursor и дополнительное расширение Pi Auto через локальный сервис решений.
-
-## Что проверено
-
-- Офлайн и наблюдение по умолчанию; отсутствие чтения ключа, сети и запуска при подборе без сети.
-- Строгая конфигурация, JSON без дубликатов, разрешённые профили, вероятности, цена, стоимость и недопустимые варианты с попытками внедрения.
-- Отсутствующий ключ, низкая уверенность, тайм-аут, испорченный журнал бюджета и исчерпание лимита до сети.
-- Сохраняемое резервирование, конкурентные запросы, повторные идентификаторы, отмена и поздний ответ после смены настроек.
-- Привязка плана к задаче и пространству, повторная проверка профиля, один запуск на решение, сохранение неопределённого исхода без повтора.
-- Отключение исполнения во время ожидающей проверки не даёт запуску пройти.
-- Отмена во время проверки метаданных не возвращает план в состояние готовности.
-- Локальные папки групп Orca с `hostId: null` доступны; удалённые пространства отклоняются.
-- Безопасный список аргументов, удаление переменных JEV из окружения, точная передача нативного варианта Cursor.
-- Сопоставление пары и версии кеша Codex.
-- В журнале нет описания задачи, ключа и текста исключения.
-- Локальный сервис Pi: доступ с удостоверением, приватный файл, запрет внешнего адреса, браузерного Origin и метода запуска.
-- Pi использует только отдельно разрешённое краткое описание и сохраняет физическую пару между продолжениями и возобновлениями.
-- UI-тесты и сценарии компонента: нет пространства, готовность, неподтверждённое решение, настройки и Pi.
-
-## Точные команды
+## Verification commands
 
 ```sh
 npm ci --ignore-scripts
-npm test
 npm run types:orca
 npm run typecheck
 npm run typecheck:core
+npm test
 npm run test:orca
 npm run check:orca
 npm run validate
 npm run audit:public
+git diff --check
 ```
 
-Локальная среда: Node.js 22.23.2, Orca 1.4.265, Plugin Host API 1.10. Тесты используют синтетические описания, имитации внешней сети и запуска. В CI запускаются автономные проверки без Orca.
+Environment: Node.js 22.23.2, Orca 1.4.265, Plugin Host API 1.10. Orca content checks use the audited `.orca/plugin` snapshot, excluding local research and development dependencies. A clean committed release copy is also validated before tagging.
 
-Итог: **26/26** автономных тестов; **30/30** при запуске через Orca, включая 4 дополнительных теста панели и фонового процесса. Обе проверки типов, проверка состава и валидация манифеста прошли. Пять сценариев панели отрисованы без замечаний и предупреждений.
+Results: **40/40** standalone tests and **52/52** tests through Orca, including UI/worker coverage. Both type checks, manifest validation, public-surface audit, and whitespace checks passed. Nine panel scenarios cover empty/ready state, unverified selection, settings, Pi, workflow preparation, questions, a selected step, and an uncertain dispatch. All nine scenarios passed without issues or warnings.
 
-Панель временно загружена через `node scripts/orca.mjs plugin dev watch .orca/plugin --check --shot .orca/shots --json` с выданным Orca отпечатком доступа. Получен и просмотрен снимок: 502×959, `settled: true`, `errors: []`, `pendingRequests: 0`. После проверки временный плагин выгружен. Внешний вид проверен в текущей тёмной теме; светлая тема отдельно не проверялась. Сценарный снимок требовал скрытого окна Orca, поэтому использован обычный снимок панели без действий ввода.
+## English interface verification
 
-Проверки содержимого запускаются на `.orca/plugin`: `npm run stage:plugin` копирует только проверенные публичные файлы. Это исключает зависимости разработки и локальные материалы из упаковки Orca.
+Task, Settings, and Workflow panels were inspected in the current dark theme at 502×959. Captures reported `settled: true`, `errors: []`, and `pendingRequests: 0`. Screenshots in `assets/` were refreshed without editing image content. Settings and Workflow previews changed only the initial tab and its state key in a separate staged copy; no user input actions, agent dispatches, or paid requests were used. The temporary development plugin was unloaded afterward and the original public surface restaged for final checks. Light theme and the native Settings page were not separately inspected.
 
-## Расходы и границы
+A Unicode scan of plugin source, check fixtures, manifest, and public Markdown found no remaining Cyrillic text. This is a check of shipped text, not a restriction on user content. No automatic translation or migration of user-authored tasks, profiles, or analysis was introduced.
 
-Новых платных запросов JEV при разработке плагина: **0**, стоимость: **$0**. Исполнители Codex/Pi/Cursor и дополнительные AI-агенты для реализации и тестов не запускались. Существующие токены и файлы авторизации не читались. Локальный тестовый HTTP-сервис использует вымышленные данные и временный файл внутри проекта.
+## Coverage
 
-Проверено только наличие `OPENROUTER_API_KEY` в окружении текущего процесса: переменная отсутствует. Живая проверка JEV заблокирована отсутствием ключа в окружении и пропущена; поиск ключей и чтение сторонних файлов секретов не выполнялись.
+Tests use synthetic tasks and mocked network/dispatch only. They cover offline/shadow defaults, missing key, invalid/injected choices, timeout, exhausted/corrupt budget, concurrent reservations, cancellation, stale configuration, workspace/task binding, metadata verification, safe argv, secret-free audit, duplicate dispatch, and lost receipts.
 
-Подбор и реальное выполнение разделены. В этой версии кнопка запуска означает явный вызов Orca, успешный ответ — принятие запуска. Фактически отвечавшая модель не объявляется установленной без свидетельства исполнения. Живые сквозные проверки нового плагина, авторизации и всех сочетаний моделей остаются отдельной работой.
+Additional coverage includes private Pi connection files and loopback authentication, explicit Pi briefs and pinned model pairs, shared native settings and migration without budget reset, profile editing, and execution disabled during verification.
 
-## Публичный состав
+Workflow tests cover preparation without execution, fixed coordinator profiles without JEV, strict analysis schema and duplicate keys, cycles/unknown dependencies, prohibited model fields, unresolved questions, unavailable/missing references, cross-agent selection, routing-brief-only JEV input, reviewed dependencies, concurrent dispatch, restart state, immutable approval, cancellation, shared accounting, symlink refusal, and bounded artifacts. A failure before persisted dispatch intent permits fresh selection; an uncertain actual launch never permits a blind retry.
 
-В Git включаются только исходники нового плагина, тесты, документация и настройки сборки/CI. Локальные исследования, транскрипты, журналы решений, файлы подключения и старые экспериментальные результаты исключены. Состав проверяется `scripts/audit-public.mjs`; ключи, персональные абсолютные пути и неожиданные файлы блокируют публикацию.
+## Live requests, costs, and blockers
 
-Включение в сторонний каталог Orca, публикация npm и установка плагина пользователям не являются частью создания GitHub-репозитория.
+Paid JEV requests during plugin development and tests: **0**. Cost: **$0**. No real coordinators, executors, extra AI agents, or Orca agent workers were launched. Existing credentials, secret files, and other work repositories were not read. Only the presence of `OPENROUTER_API_KEY` in the current environment was checked; it was absent. Live JEV testing remains blocked by the missing environment key.
+
+Live coordinator creation of `analysis.json` and real end-to-end subtask execution remain unverified. Agents provide analysis using their own tools and permissions. Source reading is reported by the coordinator, not proven by metadata. Results are accepted by the operator. Internal subagents are not intercepted, and verified catalog entries do not establish entitlement, quota, or the actual responding model.
+
+## Data and release boundaries
+
+Only new integration source, synthetic tests, documentation, screenshots, and build/CI settings are published. Private research, transcripts, connection files, logs, and previous experimental results are excluded. `scripts/audit-public.mjs` checks public paths, symlinks, sizes, common key patterns, and personal absolute paths without printing matched content.
+
+Workflow task text, analysis, instructions, and short accepted results are local working data, separate from metadata-only audit. Artifacts have no automatic deletion. Execution is sequential within a workflow, with no global folder lock, isolated worktrees, or autonomous graph scheduling. Closing a workflow does not stop a running agent.
+
+## Previous releases
+
+| Release | Verification and scope |
+| --- | --- |
+| 0.3.0 | 40/40 standalone tests, 52/52 through Orca, 9 scenarios; analyzed workflows and per-step routing; dark workflow screenshot inspected |
+| 0.2.0 | 26/26 standalone tests, 36/36 through Orca, 5 scenarios; native settings, profile form, migration, dark settings screenshot |
+| 0.1.0 | 26/26 standalone tests, 30/30 through Orca, 5 scenarios; direct routing, adapters, Pi extension, dark task screenshot |
+
+All previous plugin releases also used synthetic checks with no paid JEV calls or real agent execution. Historical details remain in Git history.
+
+Usage: [README](README.md), [workflows](docs/workflows.md), [Pi](docs/pi.md). Further development: [roadmap](docs/roadmap.md).

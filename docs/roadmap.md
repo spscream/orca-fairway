@@ -1,21 +1,21 @@
-# Развитие Fairway
+# Fairway roadmap
 
-## 0.3 — последовательный контур
+## 0.3: sequential workflows
 
-Реализовано: координатор с фиксированным разрешённым профилем; анализ и уточнения; принятие графа подзадач; выбор профиля после анализа; отдельные запуски Orca; проверка результата владельцем; сохранение бюджета и защита от повтора.
+Implemented: a coordinator with an explicit allowlisted profile; analysis and clarification; approval of a subtask graph; profile selection after analysis; separate Orca dispatch; operator result review; persistent budget accounting and duplicate-dispatch prevention.
 
-## Следующий этап — результаты исполнителей
+## Next: executor reports
 
-Определить структурированный отчёт исполнителя с привязкой к идентификатору запуска, результатами проверок и свидетельствами. Получение отчёта должно лишь готовить материал для проверки. Неизвестный исход запуска нельзя автоматически превращать в успех. После этого можно добавить отдельный профиль проверяющего и пересмотр оставшейся части плана с новой версией и новым принятием.
+Define structured reports bound to dispatch IDs, with checks and evidence. Receiving a report should prepare review material, not automatically accept success. Unknown dispatch outcomes must remain unknown. Then add a separate reviewer profile and versioned revisions of remaining work, requiring renewed approval.
 
-## Затем — ограниченная автоматизация
+## Bounded automation
 
-Добавить изолированные рабочие копии через штатный Orca, права на конкретный принятый граф, лимит запусков, остановку и проверяемое восстановление. Только после этого разрешать автоматический запуск готовых шагов после единого явного разрешения владельца. Исполнение с неопределённым исходом остаётся остановкой, а не поводом повторить запрос.
+Add native Orca isolated worktrees, authorization for a specific accepted graph, dispatch limits, stopping, and verifiable recovery. Only then allow ready steps to start automatically under a single explicit operator authorization. Unknown execution remains a stop condition, never a reason for a fresh retry.
 
-## Измерение качества выбора
+## Measure routing quality
 
-Собрать добровольно разрешённый обезличенный набор постановок и ожидаемых профилей. Сравнивать решения JEV, резервную политику и результаты выполнения отдельно. Настраивать карточки профилей и порог уверенности по измерениям. Не объявлять экономию и качество доказанными по одному удачному запуску.
+Collect an explicitly authorized, anonymized task set with expected profiles. Evaluate JEV decisions, fallback policy, and execution outcomes separately. Tune profile cards and confidence policy from measurements. One successful run does not establish cost savings or superior quality.
 
-## Границы
+## Boundaries
 
-Ни один этап не требует изменения исходного Orca. Прозрачное управление внутренними субагентами других агентов требует отдельного подтверждённого интерфейса; пока такой поддержки не заявлено. Обновление каталога моделей, права аккаунта и фактическая модель ответа также остаются отдельными проверками.
+No stage requires changing Orca itself. Transparent control of another agent's internal subagents requires a separately verified interface and is not currently claimed. Model-catalog freshness, account entitlement, and observed response models remain separate checks.

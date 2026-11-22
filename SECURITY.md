@@ -1,21 +1,21 @@
-# Границы безопасности
+# Security boundaries
 
-Плагин запускает доверенный код с правами текущего пользователя. Проверяйте исходники и доступ до установки. Сам плагин не является границей изоляции для исполняющего агента; песочница и подтверждения остаются за Orca и выбранным агентом.
+The plugin runs trusted code as the current user. Review its source and access before installation. It is not a sandbox for execution agents; their tools and approvals remain under Orca and the selected agent.
 
-По умолчанию сеть и исполнение выключены. JEV получает только явно разрешённое описание и карточки профилей. Не вставляйте ключи, исходный код или конфиденциальные данные в описания и конфигурацию. Автоматического определения всех секретов нет.
+Network access and execution are disabled by default. JEV receives only an explicitly authorized description and profile cards. Do not put keys, source code, or confidential data in routing descriptions or configuration. Automatic secret detection is not comprehensive.
 
-Ключ JEV хранится в собственной области секретов Orca, не в Git, JSON настроек или журнале. Ключи подписок не читаются и не пересылаются. Подключение Pi использует отдельное случайное локальное удостоверение, которое также нельзя публиковать.
+The JEV key stays in own Orca secret storage, never Git, ordinary settings, or audit. Subscription credentials are not read or forwarded. The Pi connection uses a separate random local capability that must also remain private.
 
-Запуск выполняется массивом аргументов без shell. Пара модели и усилия валидируется и сверяется с настроенным профилем. Подтверждение владельца Pi — доверенное административное утверждение, не проверка права подписки или поведения сервера.
+Dispatch uses an argument array without a shell. Model and effort are validated against an allowlisted profile. Pi operator confirmation is a trusted administrative attestation, not proof of account entitlement or server behavior.
 
-Сетевой сервис Pi по умолчанию выключен. При включении он слушает только loopback, ограничивает размер и частоту запросов и не имеет метода запуска. Любой локальный процесс с доступом к файлу подключения может использовать этот сервис и расходовать настроенный бюджет; защищайте пользовательскую учётную запись и права файла.
+The optional Pi service is off by default. It listens only on loopback, bounds request size/rate, and has no dispatch endpoint. A local process that can read its connection file can request decisions and consume the configured budget. Protect the user account and file permissions.
 
-План со статусом неопределённого запуска нельзя повторять вслепую. Проверьте Orca перед новым решением. Кнопка запуска не обещает завершение задачи или фактическую идентичность модели по одному подтверждению принятия.
+Never blindly repeat an uncertain dispatch. Inspect Orca before any new decision. An accepted launch does not prove completion or the actual responding model.
 
-Режим подзадач хранит исходную постановку, анализ, инструкции и подтверждения результатов локально, отдельно от аудита. Файл анализа читается только из собственной заранее созданной папки Fairway с ограничением размера и проверкой ссылок файловой системы. Содержание считается недоверенным до строгой проверки формата и принятия владельцем. Отметка чтения документа заявляется координатором и не служит техническим доказательством чтения.
+Workflow mode stores the original task, analysis, instructions, and accepted reviews locally, separately from audit. Analysis is read only from a pre-created private directory with bounded size and filesystem-link checks. Input is untrusted until strict validation and operator approval. A coordinator's source-reading claim is not technical proof of reading.
 
-Координатору и исполнителям задаётся инструкция не создавать собственных агентов. Это не запрет на уровне ОС: внутренние субагенты, инструменты и разрешения самих агентов плагином не перехватываются. Ограничение одного незавершённого шага действует внутри одного плана; другие агенты и закрытые планы не являются глобальной блокировкой папки. Закрытие плана не останавливает ранее запущенный процесс.
+Coordinator and executor instructions prohibit creating their own agents. This is not an OS restriction: internal subagents and their tools are not intercepted. The one-pending-step rule applies within a workflow, not as a global folder lock. Closing a workflow does not stop an already dispatched agent.
 
-Бюджет хранится локально. Удаление данных плагина, несколько независимых установок или другой инструмент OpenRouter изменяют область учёта. Лимит не контролирует весь аккаунт и не ограничивает расходы исполняющих агентов.
+Accounting is local. Removing plugin data, using independent installations, or making OpenRouter requests elsewhere changes its scope. It neither controls the whole account nor limits coordinator/executor costs. Workflow artifacts have no automatic deletion policy. On Windows, protect private directories and files using OS ACLs.
 
-Для сообщения об уязвимости используйте вкладку Security публичного репозитория, если доступна частная отправка. Не размещайте реальные ключи, файлы авторизации, тексты задач и приватные журналы в публичных issues.
+To report a vulnerability, use private reporting in the repository Security tab if available. Do not post real keys, authentication files, private tasks, or logs in public issues.

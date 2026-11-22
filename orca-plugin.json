@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "fairway",
   "name": "Fairway for Orca",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Choose an allowlisted Codex, Pi or Cursor profile with JEV, then explicitly launch it through Orca. Shadow mode by default.",
   "author": {
     "name": "spscream",
@@ -46,29 +46,29 @@
     "commands": [
       {
         "id": "fairway.status",
-        "title": "Fairway: состояние маршрутизатора",
+        "title": "Fairway: router status",
         "when": "global"
       }
     ],
     "settings": [
       {
         "key": "live",
-        "title": "Запросы JEV",
-        "description": "Разрешить платный подбор профиля. Сам подбор не запускает агента.",
+        "title": "JEV requests",
+        "description": "Allow paid profile decisions. Selecting a profile never starts an agent.",
         "type": "boolean",
         "default": false
       },
       {
         "key": "execution",
-        "title": "Явный запуск через Orca",
-        "description": "Разрешить отдельную кнопку запуска проверенного профиля.",
+        "title": "Explicit execution through Orca",
+        "description": "Enable the separate dispatch button for verified profiles.",
         "type": "boolean",
         "default": false
       },
       {
         "key": "budgetUsd",
-        "title": "Общий бюджет JEV, USD",
-        "description": "Лимит накопленного резерва решений, от 0 до 10 USD. До 6 знаков после точки. Сохранение не обнуляет расходы.",
+        "title": "Total JEV budget, USD",
+        "description": "Cumulative decision reservation limit, 0–10 USD, up to 6 decimal places. Saving does not reset accounting.",
         "type": "number",
         "default": 0.1,
         "minimum": 0,
@@ -76,8 +76,8 @@
       },
       {
         "key": "maxCalls",
-        "title": "Лимит попыток JEV",
-        "description": "Накопленный лимит, от 0 до 100. Профили и ключ настраиваются в панели Fairway.",
+        "title": "JEV attempt limit",
+        "description": "Cumulative limit, 0–100. Configure profiles and the key in the Fairway panel.",
         "type": "integer",
         "default": 5,
         "minimum": 0,

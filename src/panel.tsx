@@ -14,26 +14,26 @@ const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
   const code = e instanceof Error ? e.message : ''
   const known: Record<string, string> = {
-    local_workspace_required: 'Нужно локальное рабочее пространство Orca.', execution_disabled: 'Запуск выключен в настройках Fairway.',
-    profile_unverified: 'Пара модели и усилия не подтверждена.', plan_changed: 'Задача или настройки изменились. Подберите профиль заново.',
-    plan_not_launchable: 'Решение отменено, просрочено или уже использовано.', plan_already_consumed: 'Повторный запуск этого решения запрещён.',
-    no_profiles_for_agent: 'Добавьте профили выбранного агента в настройках.', invalid_config: 'Проверьте настройки профилей.', invalid_task: 'Описание должно занимать от 1 до 4096 байт UTF-8.',
-    invalid_budget: 'Бюджет: от 0 до 10 USD, не более 6 знаков после точки или запятой.', invalid_call_limit: 'Лимит попыток: целое число от 0 до 100.',
-    invalid_profile_id: 'Идентификатор: латинская буква, затем буквы, цифры, дефис или подчёркивание; до 40 символов.',
-    invalid_model: 'Укажите точный идентификатор модели без пробелов и команд.', invalid_description: 'Описание профиля: от 1 до 400 символов.',
-    duplicate_profile: 'Идентификаторы профилей должны быть уникальными.', invalid_fallback: 'Выберите существующий резервный профиль.',
-    invalid_pi_pair: 'Для Pi укажите provider/model и допустимое усилие.', invalid_codex_pair: 'Для Codex укажите модель без имени провайдера и допустимое усилие.',
-    invalid_cursor_pair: 'Для Cursor нужен точный идентификатор модели; auto не разрешён.',
-    workflow_active: 'Закройте текущий план или завершите его подзадачи.', workflow_task_too_large: 'Постановка для координатора: до 2000 байт UTF-8.',
-    workflow_workspace_changed: 'План относится к другому рабочему пространству.', analysis_not_found: 'Координатор ещё не записал файл анализа.',
-    invalid_analysis: 'Файл анализа не соответствует формату или превышает лимиты.', invalid_dependencies: 'В плане повторяются шаги, есть цикл или неизвестная зависимость.',
-    analysis_needs_clarification: 'Сначала уточните вопросы и недоступные источники с координатором.', analysis_already_approved: 'Принятый план нельзя заменить. Создайте новый план.',
-    analysis_missing_sources: 'В анализе должны быть указаны все ссылки из исходной задачи.',
-    dependencies_not_reviewed: 'Сначала подтвердите результаты зависимостей.', workflow_running: 'Сначала проверьте результат уже запущенной подзадачи.',
-    step_not_launchable: 'Сначала подберите и подтвердите профиль подзадачи.', workflow_not_ready: 'План ещё не готов или уже закрыт.',
-    invalid_review: 'Подтверждение результата: от 1 до 160 байт UTF-8, без кода и секретов.'
+    local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
+    profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
+    plan_not_launchable: 'The decision was cancelled, expired, or already used.', plan_already_consumed: 'This decision cannot be dispatched again.',
+    no_profiles_for_agent: 'Add profiles for the selected agent in Settings.', invalid_config: 'Check the profile settings.', invalid_task: 'The description must contain 1–4096 UTF-8 bytes.',
+    invalid_budget: 'Budget: 0–10 USD, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be an integer from 0 to 100.',
+    invalid_profile_id: 'ID: start with a lowercase ASCII letter; use letters, digits, hyphens or underscores, up to 40 characters.',
+    invalid_model: 'Enter an exact model ID without spaces or commands.', invalid_description: 'The profile description must contain 1–400 characters.',
+    duplicate_profile: 'Profile IDs must be unique.', invalid_fallback: 'Select an existing fallback profile.',
+    invalid_pi_pair: 'For Pi, enter provider/model and a supported effort.', invalid_codex_pair: 'For Codex, enter a model without a provider prefix and a supported effort.',
+    invalid_cursor_pair: 'Cursor requires an exact model ID; auto is not allowed.',
+    workflow_active: 'Close the current workflow or complete its subtasks.', workflow_task_too_large: 'The coordinator task must fit within 2000 UTF-8 bytes.',
+    workflow_workspace_changed: 'This workflow belongs to another workspace.', analysis_not_found: 'The coordinator has not written the analysis file yet.',
+    invalid_analysis: 'The analysis file is invalid or exceeds the limits.', invalid_dependencies: 'The workflow contains duplicate steps, a cycle, or an unknown dependency.',
+    analysis_needs_clarification: 'Resolve open questions and unavailable sources with the coordinator first.', analysis_already_approved: 'An approved workflow cannot be replaced. Create a new workflow.',
+    analysis_missing_sources: 'The analysis must list every URL from the original task.',
+    dependencies_not_reviewed: 'Review and accept dependency results first.', workflow_running: 'Review the currently dispatched subtask first.',
+    step_not_launchable: 'Select and verify a subtask profile first.', workflow_not_ready: 'The workflow is not ready or has been closed.',
+    invalid_review: 'The result review must contain 1–160 UTF-8 bytes, without code or secrets.'
   }
-  set(error, known[code] ?? 'Операция не завершена. Проверьте настройки и доступность Orca; секреты и вывод процессов скрыты.')
+  set(error, known[code] ?? 'The operation did not complete. Check the settings and Orca availability. Secrets and process output are hidden.')
 }
 function apply(s: Status, reset = !read(dirty)): void {
   set(state, s); set(plan, s.lastPlan)
@@ -92,29 +92,29 @@ async function bridge(enabled: boolean): Promise<void> {
 }
 function settingsForm() {
   const config = read(draft), profile = config.profiles[read(selectedProfile)] ?? config.profiles[0]!
-  const options = config.profiles.map((p, i) => ({ value: String(i), label: `${p.id || 'Без идентификатора'} · ${p.agent} · ${p.model || 'модель не задана'}` }))
+  const options = config.profiles.map((p, i) => ({ value: String(i), label: `${p.id || 'No ID'} · ${p.agent} · ${p.model || 'model not set'}` }))
   const efforts = profile.agent === 'pi' ? ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] : ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
   return <Stack gap="md">
-    <Card title="Режим и лимиты" description="Эти же параметры доступны в Settings → Plugins → Fairway.">
+    <Card title="Mode and limits" description="These settings are also available in Settings → Plugins → Fairway.">
       <Stack gap="sm">
-        <Switch label="Разрешить платные запросы JEV" checked={config.live} onChange={live => change({ live })} />
-        <Switch label="Разрешить явный запуск через Orca" checked={config.execution} onChange={execution => change({ execution })} />
-        <Input label="Общий бюджет JEV, USD" value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
-        <Input label="Лимит попыток JEV" value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
-        <Text muted>Подбор не запускает агента. Лимиты накопленные: сохранение не обнуляет учёт расходов.</Text>
+        <Switch label="Allow paid JEV requests" checked={config.live} onChange={live => change({ live })} />
+        <Switch label="Allow explicit execution through Orca" checked={config.execution} onChange={execution => change({ execution })} />
+        <Input label="Total JEV budget, USD" value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
+        <Input label="JEV attempt limit" value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
+        <Text muted>Selecting a profile never starts an agent. Limits are cumulative; saving does not reset accounting.</Text>
       </Stack>
     </Card>
-    <Card title="Разрешённые профили" description="До 24 профилей. Доступность пары проверяется отдельно перед запуском.">
+    <Card title="Allowed profiles" description="Up to 24 profiles. Pair availability is verified separately before dispatch.">
       <Stack gap="sm">
-        <Select label="Редактируемый профиль" value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
-        <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>Добавить профиль</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>Удалить профиль</Button></Row>
-        <Input label="Идентификатор профиля" value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />
-        <Select label="Агент профиля" value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
-        <Input label="Модель профиля" value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : 'Точный идентификатор из каталога агента'} onChange={model => editProfile({ model, operatorConfirmed: false })} />
-        {profile.agent === 'cursor' ? <Text muted>Усилие входит в нативный идентификатор Cursor. Отдельный параметр не передаётся; auto запрещён.</Text> : <Select label="Усилие профиля" value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
-        <Textarea label="Когда выбирать профиль" value={profile.description} maxLength={400} rows={3} placeholder="Класс задач, сложность и условия выбора; без секретов." onChange={description => editProfile({ description })} />
-        {profile.agent === 'pi' ? <Switch label="Я проверил эту пару в Pi" checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>Проверка по метаданным агента обязательна. Ручное подтверждение не обходит её.</Text>}
-        <Select label="Резервный профиль" value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || 'Без идентификатора' }))} onChange={fallback => change({ fallback })} />
+        <Select label="Profile to edit" value={String(read(selectedProfile))} options={options} onChange={v => set(selectedProfile, Number(v))} />
+        <Row gap="sm" wrap><Button icon="add" disabled={config.profiles.length >= 24} onPress={addProfile}>Add profile</Button><Button icon="delete" variant="ghost" disabled={config.profiles.length <= 1} onPress={removeProfile}>Delete profile</Button></Row>
+        <Input label="Profile ID" value={profile.id} maxLength={40} onChange={id => editProfile({ id })} />
+        <Select label="Profile agent" value={profile.agent} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => editProfile({ agent: v as Agent, model: '', effort: v === 'cursor' ? null : 'medium', operatorConfirmed: false })} />
+        <Input label="Profile model" value={profile.model} maxLength={120} placeholder={profile.agent === 'pi' ? 'provider/model' : 'Exact ID from the agent catalog'} onChange={model => editProfile({ model, operatorConfirmed: false })} />
+        {profile.agent === 'cursor' ? <Text muted>Cursor effort is encoded in its native model ID. No separate effort flag is sent; auto is not allowed.</Text> : <Select label="Profile effort" value={profile.effort ?? 'medium'} options={efforts.map(value => ({ value, label: value }))} onChange={v => editProfile({ effort: v as Effort, operatorConfirmed: false })} />}
+        <Textarea label="When to choose this profile" value={profile.description} maxLength={400} rows={3} placeholder="Task class, complexity, and selection criteria; no secrets." onChange={description => editProfile({ description })} />
+        {profile.agent === 'pi' ? <Switch label="I verified this pair in Pi" checked={profile.operatorConfirmed} onChange={operatorConfirmed => editProfile({ operatorConfirmed })} /> : <Text muted>Agent metadata verification is required. Manual confirmation cannot bypass it.</Text>}
+        <Select label="Fallback profile" value={config.fallback} options={config.profiles.map(p => ({ value: p.id, label: p.id || 'No ID' }))} onChange={fallback => change({ fallback })} />
       </Stack>
     </Card>
   </Stack>
@@ -122,59 +122,59 @@ function settingsForm() {
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy)
   return <Stack gap="md">
-    <Row justify="between"><Heading>Fairway</Heading><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? 'Явный запуск' : 'Наблюдение'}</Badge></Row>
-    <Text muted>Маршрут задачи → модель и усилие → штатный запуск Orca.</Text>
-    {read(error) ? <Callout tone="danger" title="Операция остановлена"><Text>{read(error)}</Text></Callout> : null}
-    <Tabs label="Раздел" value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>
-      <Tab value="workflow" label="План">{workflowPanel(s, w => {
+    <Row justify="between"><Heading>Fairway</Heading><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? 'Explicit execution' : 'Shadow mode'}</Badge></Row>
+    <Text muted>Task → model and effort → native Orca dispatch.</Text>
+    {read(error) ? <Callout tone="danger" title="Operation stopped"><Text>{read(error)}</Text></Callout> : null}
+    <Tabs label="Section" value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>
+      <Tab value="workflow" label="Workflow">{workflowPanel(s, w => {
         set(error, '')
         const current = read(state); if (current) set(state, { ...current, workflow: w })
         void plugin.request('fairway.status').then(next => set(state, next)).catch(showError)
       }, showError)}</Tab>
-      <Tab value="task" label="Задача">
+      <Tab value="task" label="Task">
         <Stack gap="md">
-          <Callout tone="neutral" title={s?.config.live ? 'JEV включён' : 'Без сети'}><Text>{s?.config.live ? 'JEV получает только введённое описание и карточки разрешённых профилей.' : 'Выбирается резервный профиль. Платных запросов нет.'}</Text></Callout>
-          {!s?.workspace ? <Text tone="warning">Откройте локальное рабочее пространство Orca.</Text> : null}
-          <Select label="Исполнитель" disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
-          <Textarea label="Описание задачи" disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder="Короткая постановка без секретов и исходного кода" onChange={v => { void cancel(); set(task, v) }} />
-          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !read(task).trim() || !s?.workspace} onPress={route}>Подобрать профиль</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>Отменить подбор</Button></Row>
-          {waiting ? <Spinner label="Выполняется операция" /> : null}
-          {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? 'усилие в идентификаторе Cursor'}`}>
+          <Callout tone="neutral" title={s?.config.live ? 'JEV enabled' : 'Offline'}><Text>{s?.config.live ? 'JEV receives only the entered description and allowed profile cards.' : 'Uses the fallback profile. No paid requests.'}</Text></Callout>
+          {!s?.workspace ? <Text tone="warning">Open a local Orca workspace.</Text> : null}
+          <Select label="Agent" disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
+          <Textarea label="Task description" disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder="A short task description without secrets or source code" onChange={v => { void cancel(); set(task, v) }} />
+          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !read(task).trim() || !s?.workspace} onPress={route}>Select profile</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>Cancel selection</Button></Row>
+          {waiting ? <Spinner label="Working" /> : null}
+          {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? 'effort encoded in the Cursor ID'}`}>
             <Stack gap="sm">
-              <KeyValue items={[{ label: 'Причина', value: p.reason }, { label: 'Подтверждение', value: p.evidence.source }, { label: 'Уверенность', value: p.confidence === null ? '—' : p.confidence.toFixed(2) }, { label: 'Состояние', value: p.state }]} />
-              {!p.evidence.verified ? <Text tone="warning">Запуск заблокирован: подтвердите точную пару по метаданным агента.</Text> : null}
-              <Button icon="play" disabled={waiting || !s?.config.execution || !p.evidence.verified || p.state !== 'shadow'} onPress={launch}>Запустить через Orca</Button>
-              {p.state === 'submitted' ? <Text tone="success">Orca приняла запуск. Фактически отвечавшая модель пока не подтверждена.</Text> : null}
-              {p.state === 'dispatch_unknown' ? <Text tone="warning">Результат запуска неизвестен. Проверьте Orca перед новым запуском.</Text> : null}
+              <KeyValue items={[{ label: 'Reason', value: p.reason }, { label: 'Verification', value: p.evidence.source }, { label: 'Confidence', value: p.confidence === null ? '—' : p.confidence.toFixed(2) }, { label: 'State', value: p.state }]} />
+              {!p.evidence.verified ? <Text tone="warning">Dispatch blocked: verify the exact pair using agent metadata.</Text> : null}
+              <Button icon="play" disabled={waiting || !s?.config.execution || !p.evidence.verified || p.state !== 'shadow'} onPress={launch}>Launch through Orca</Button>
+              {p.state === 'submitted' ? <Text tone="success">Orca accepted the dispatch. The model that actually responds is not yet verified.</Text> : null}
+              {p.state === 'dispatch_unknown' ? <Text tone="warning">The dispatch outcome is unknown. Inspect Orca before starting anything again.</Text> : null}
             </Stack>
           </Card> : null}
         </Stack>
       </Tab>
-      <Tab value="settings" label="Настройки">
+      <Tab value="settings" label="Settings">
         <Stack gap="md">
-          <Text>Изменения применяются только к Fairway. Сохранение отменяет незавершённые решения.</Text>
+          <Text>Changes apply only to Fairway. Saving cancels pending decisions.</Text>
           {settingsForm()}
           <Row gap="sm" wrap>
-            <Button disabled={read(saving) || !s || !read(dirty)} onPress={save}>Сохранить настройки</Button>
-            <Button variant="ghost" disabled={read(saving) || !read(dirty)} onPress={async () => { try { apply(await plugin.request('fairway.status'), true); set(error, '') } catch (e) { showError(e) } }}>Отменить изменения</Button>
+            <Button disabled={read(saving) || !s || !read(dirty)} onPress={save}>Save settings</Button>
+            <Button variant="ghost" disabled={read(saving) || !read(dirty)} onPress={async () => { try { apply(await plugin.request('fairway.status'), true); set(error, '') } catch (e) { showError(e) } }}>Discard changes</Button>
           </Row>
-          {read(dirty) ? <Text tone="warning">Есть несохранённые изменения. Штатные настройки Orca применяются сразу; сохранение этой формы заменит их показанными значениями.</Text> : null}
-          <Input label="Ключ OpenRouter" type="password" value={read(apiKey)} onChange={v => set(apiKey, v)} placeholder={s?.keyPresent ? 'Ключ сохранён в Orca' : 'Не задан'} />
-          <Row gap="sm" wrap><Button onPress={keySave}>Сохранить ключ</Button><Button variant="ghost" onPress={async () => { set(apiKey, ''); await keySave() }}>Удалить ключ</Button></Row>
-          <Text muted>Ключ хранится в защищённом хранилище Orca. Файлы .env и ключи агентов не читаются.</Text>
+          {read(dirty) ? <Text tone="warning">You have unsaved changes. Native Orca settings apply immediately; saving this form replaces them with the displayed values.</Text> : null}
+          <Input label="OpenRouter key" type="password" value={read(apiKey)} onChange={v => set(apiKey, v)} placeholder={s?.keyPresent ? 'Key saved in Orca' : 'Not set'} />
+          <Row gap="sm" wrap><Button onPress={keySave}>Save key</Button><Button variant="ghost" onPress={async () => { set(apiKey, ''); await keySave() }}>Delete key</Button></Row>
+          <Text muted>The key stays in Orca secret storage. No .env files or agent credentials are read.</Text>
         </Stack>
       </Tab>
       <Tab value="pi" label="Pi Auto">
         <Stack gap="md">
-          <Text>Дополнительное расширение Pi запрашивает только решение. Модель и авторизацию сохраняет Pi.</Text>
-          <Switch label="Локальный сервис решений Pi" checked={!!s?.bridgePath} onChange={v => { void bridge(v) }} />
+          <Text>The optional Pi extension requests decisions only. Pi retains model execution and authentication.</Text>
+          <Switch label="Local Pi decision service" checked={!!s?.bridgePath} onChange={v => { void bridge(v) }} />
           {s?.bridgePath ? <Code block>{s.bridgePath}</Code> : null}
-          <Text muted>Подключение и проверка пар описаны в docs/pi.md. Это не HTTP-прокси генерации и не переключатель стандартного списка моделей Orca.</Text>
+          <Text muted>See docs/pi.md for setup and pair verification. This is not a generation proxy or a switch for the native Orca model list.</Text>
         </Stack>
       </Tab>
-      <Tab value="history" label="Журнал"><Stack gap="sm"><Text muted>Последние 20 событий. Текст задач, ключи и ответы API сюда не записываются.</Text><Code block>{read(journal)}</Code></Stack></Tab>
+      <Tab value="history" label="Audit log"><Stack gap="sm"><Text muted>Last 20 events. Task text, keys, and API responses are never recorded here.</Text><Code block>{read(journal)}</Code></Stack></Tab>
     </Tabs>
-    <Text muted size="xs">Попыток JEV: {s?.ledger.calls ?? 0}. Резерв: ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
-    <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>Обновить состояние</Button>
+    <Text muted size="xs">JEV attempts: {s?.ledger.calls ?? 0}. Reserved: ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
+    <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>Refresh status</Button>
   </Stack>
 }

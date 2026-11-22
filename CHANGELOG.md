@@ -1,25 +1,30 @@
-# История изменений
+# Changelog
+
+## 0.3.1
+
+- English interface, native Orca settings, validation messages, and status command.
+- English documentation, synthetic UI fixtures, and refreshed screenshots.
+- Settings keys, persisted user content, protocols, permissions, and execution behavior unchanged.
 
 ## 0.3.0
 
-- Вкладка «План»: подготовка и явный запуск координатора с проверенным профилем.
-- Структурированный анализ документации, вопросы, источники и граф до 8 подзадач.
-- Подбор агента, модели и усилия для каждого принятого шага; JEV получает только отдельное описание для подбора.
-- Последовательный запуск через Orca, подтверждение результата и блокировка зависимостей до проверки.
-- Приватные файлы анализа, неизменность принятого плана и защита от повторного запуска.
+- Workflow tab with preparation and explicit coordinator dispatch using a verified profile.
+- Structured documentation analysis, questions, sources, and an acyclic graph of up to 8 subtasks.
+- Per-step agent/model/effort selection using a separate JEV routing brief.
+- Sequential Orca dispatch, operator result review, and dependency gates.
+- Private analysis artifacts, immutable approved analysis, and duplicate-dispatch protection.
 
 ## 0.2.0
 
-- Основные режимы и лимиты в Settings → Plugins → Fairway.
-- Форма профилей вместо JSON: добавление, удаление, резервный профиль, выбор агента и усилия.
-- Бюджет в USD, сохранение прежней конфигурации и накопленного учёта расходов.
-- Сброс подтверждения Pi после изменения пары; проверки формы и общих настроек.
+- Native Settings → Plugins → Fairway preferences for modes and limits.
+- Profile form replacing JSON editing: add, delete, fallback, agent, and effort.
+- Budget in USD, legacy configuration migration, and preserved cumulative accounting.
+- Pi pair confirmation cleared after model/effort changes; form and shared-settings tests.
 
 ## 0.1.0
 
-- Плагин Orca с панелью и настройками профилей.
-- JEV 1.14, строгая проверка ответа, резервный выбор и сохраняемый бюджет.
-- Безопасный явный запуск Codex, Pi и Cursor, привязка плана и запрет повторной отправки.
-- Дополнительное расширение Pi Auto с явным кратким описанием.
-- По умолчанию: без сети, без исполнителей, без автоматического подключения к агентам.
-- Автономные проверки логики, адаптеров и панели Orca; живые сквозные испытания будущая работа.
+- Standalone Orca plugin with a panel and configurable profiles.
+- JEV 1.14, strict responses, fallback, and persistent bounded accounting.
+- Explicit Codex/Pi/Cursor dispatch with task binding and duplicate prevention.
+- Optional Pi Auto extension using an explicit brief.
+- Offline/shadow defaults and synthetic core, adapter, and Orca UI checks.

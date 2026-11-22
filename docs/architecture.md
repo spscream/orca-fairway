@@ -1,40 +1,43 @@
-# Архитектура Fairway
+# Fairway architecture
 
-Fairway — отдельный плагин Orca: панель компонентов, доверенный фоновый процесс и общая логика на TypeScript без зависимостей исполнения. Исходный код Orca не меняется.
+Fairway is a standalone Orca plugin: a components panel, a trusted Node worker, and shared TypeScript logic with no runtime dependencies. Orca source is unchanged.
 
 ```mermaid
 flowchart TD
-  A[Панель Fairway] --> B[Проверенная конфигурация профилей]
-  B --> C[Резерв бюджета и JEV]
-  C --> D[Проверка ответа и резервный профиль]
-  D --> E[План с привязкой к задаче и рабочему пространству]
-  E --> F[Явный запуск через CLI Orca]
-  P[Расширение Pi и явное краткое описание] --> B
+  A[Fairway panel] --> B[Validated profiles]
+  B --> C[Budget reservation and JEV]
+  C --> D[Strict response validation and fallback]
+  D --> E[Decision bound to task and workspace]
+  E --> F[Explicit Orca CLI dispatch]
+  P[Pi extension and explicit brief] --> B
   D --> P
+  W[Coordinator analysis and approval] --> C
 ```
 
-`src/core/config.ts` проверяет настройки и пары; `jev.ts` ограничивает endpoint, цену, размер и ответ; `engine.ts` сериализует изменения журнала и бюджета, сохраняет намерение запуска до процесса и блокирует повтор. `runtime.ts` проверяет каталоги и формирует безопасный массив аргументов. `bridge.ts` предоставляет дополнительный локальный интерфейс только для решений Pi.
+`src/core/config.ts` validates configuration and pairs. `jev.ts` bounds endpoint, pricing, payloads, and responses. `engine.ts` serializes budget/audit writes, persists dispatch intent before process creation, and prevents duplicate dispatch. `runtime.ts` verifies catalogs and builds argument arrays without a shell. `bridge.ts` provides the optional decision-only Pi service.
 
-Основные режимы и лимиты хранятся в `orca.settings` и объявлены через `contributes.settings`; профили и резервный вариант — в собственном хранилище. Чтение конфигурации объединяет их перед каждой операцией, поэтому отключение исполнения в штатных настройках действует и на ожидающий запуск. Данные версии 0.1.0 переносятся один раз, журнал бюджета не обнуляется. Панель редактирует общую конфигурацию через форму.
+Modes and limits are declared through `contributes.settings` and stored in `orca.settings`; profiles and fallback live in own storage. Configuration reads combine both before each operation, so disabling execution in native settings also blocks a pending launch. Legacy 0.1.0 settings migrate once without resetting the ledger.
 
-`src/worker.ts` связывает общую логику с собственным хранилищем и секретами Orca. Он проверяет локальный хост рабочего пространства, не открывает файлы проекта и не отправляет задачу при активации. `src/panel.tsx` — пользовательский интерфейс, который запускает подбор отдельно от исполнения. `adapters/pi.ts` использует виртуальную модель Pi и не требует перехвата всех запросов генерации.
+`src/worker.ts` connects the core to own Orca storage and secrets. It checks local workspace metadata, does not read project files, and never sends a task on activation. `src/panel.tsx` separates selection from dispatch. `adapters/pi.ts` registers a virtual model without proxying generation.
 
-Плагин использует CLI Orca для запуска, поскольку в проверенном Host API 1.10 метод `agent.launch` не имеет полей модели и усилия и запускает терминальную сессию. У CLI есть документированные параметры выбора. Способ Chat/CLI остаётся за настройкой Orca; отказ или потерянный ответ не вызывают нового запуска.
+`workflow.ts` validates coordinator analysis and dependencies, fixes approved content, selects profiles using routing briefs, and gates dependent work on reviewed results. `artifacts.ts` reads bounded analysis files only from pre-created private directories. Original task, local instructions, and short accepted reviews stay in workflow storage; they are excluded from audit and automatic JEV input.
 
-Обработчик `agent.launch.before` не используется: он не получает текст задачи и имеет короткое время ответа. Сетевой вызов JEV не должен задерживать все обычные запуски Orca. Плагин не заявляет перехват стандартной первой отправки родного чата.
+The verified Host API 1.10 `agent.launch` method lacks model/effort fields and launches terminal sessions. The native Orca CLI provides documented selection parameters for either surface. Chat/CLI preference remains Orca's choice; refusal or a lost response does not cause a fresh launch.
 
-В первой версии физические пары подтверждаются до исполнения, но квоты и право аккаунта на модель не выводятся из наличия CLI. Настроенное, переданное и фактически наблюдаемое значения не смешиваются: успешный ответ Orca означает принятие, поля наблюдения остаются неизвестными.
+The `agent.launch.before` hook is not used: it lacks task text and has a short deadline. JEV calls should not delay unrelated launches. Interception of the first native chat message is not claimed.
 
-Смена конфигурации и отмена завершают активные запросы. Планы действуют десять минут и связаны с контрольными суммами описания, конфигурации и пространства. Статус `dispatch_pending` сохраняется до вызова CLI; после ошибки или тайм-аута решение нельзя использовать повторно. Старые планы остаются в собственном хранилище как метаданные, но больше не исполняются. Журнал ограничен 200 событиями.
+Verification distinguishes configured, dispatched, and observed values. A catalog does not prove account quota or entitlement. An accepted dispatch does not establish the responding model; observed fields remain unknown.
 
-Все режимы используют одну логику бюджета. Резервирование консервативное и сохраняется даже при ошибке. Это локальный лимит решений JEV, не управление оплатой исполняющих провайдеров и не общий лимит аккаунта.
+Routing decisions expire after ten minutes and bind task, configuration, and workspace hashes. Configuration changes and cancellation abort pending requests. `dispatch_pending` is persisted before the CLI call. Uncertain execution is never blindly retried. Expired plan metadata remains in own storage; audit is bounded to 200 events.
 
-Первичные интерфейсы:
+All routes share conservative persistent JEV accounting, including failures. This is a local decision budget, not an account-wide OpenRouter limit or execution-provider budget.
 
-- [Orca plugin host API](https://github.com/stablyai/orca/blob/main/docs/reference/plugin-host-api.md).
-- [Pi virtual models](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/virtual-models.md).
-- [JEV Decisions API](https://openrouter.ai/docs/guides/community/jev).
-- [Фиксированная модель typesafe/jev-1.14](https://openrouter.ai/typesafe/jev-1.14).
-- [Cursor CLI](https://cursor.com/docs/cli/reference/parameters).
+Primary interfaces:
 
-Полноценный Responses-шлюз Codex, сбор метрик фактически ответившей модели, удалённые хосты и мобильный интерфейс остаются отдельными направлениями. HTTP-прокси Cursor не объявляется поддержанным на основании одного флага `--endpoint`.
+- [Orca plugin host API](https://github.com/stablyai/orca/blob/main/docs/reference/plugin-host-api.md)
+- [Pi virtual models](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/virtual-models.md)
+- [JEV Decisions API](https://openrouter.ai/docs/guides/community/jev)
+- [Fixed typesafe/jev-1.14 model](https://openrouter.ai/typesafe/jev-1.14)
+- [Cursor CLI](https://cursor.com/docs/cli/reference/parameters)
+
+A full Codex Responses gateway, actual-response model telemetry, remote hosts, and mobile UI remain separate work. A Cursor generation proxy is not claimed from the existence of an `--endpoint` flag.

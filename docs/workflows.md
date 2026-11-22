@@ -1,32 +1,32 @@
-# Координатор и подзадачи
+# Coordinator and subtasks
 
-Этот режим предназначен для неточной постановки или задачи со ссылками, когда профиль исполнителя имеет смысл выбирать после анализа.
+Use this mode when an ambiguous task or documentation reference needs analysis before choosing an execution profile.
 
-![Вкладка плана Fairway](../assets/workflow-dark.png)
+![Fairway workflow tab](../assets/workflow-dark.png)
 
-1. В локальном пространстве Orca откройте вкладку **План**. Введите постановку со ссылками, до 2000 байт UTF-8.
-2. Выберите профиль координатора и нажмите **Подготовить анализ**. Проверяется точная разрешённая пара. JEV не вызывается, агент не запускается.
-3. Включите явное исполнение в настройках, если оно выключено. При изменении конфигурации подготовьте новый план координатора: закройте старый план и повторите подготовку.
-4. Нажмите **Запустить координатора через Orca**. В его чате ответьте на уточняющие вопросы. Координатору поручено прочитать источники, подготовить анализ и записать `analysis.json` по показанному приватному пути.
-5. Нажмите **Прочитать анализ координатора**. Проверьте выводы, допущения, источники, инструкции, критерии результата и отдельные описания для JEV. Чтение источников заявляется координатором, технически плагином не доказывается.
-6. Если есть вопросы или недоступные источники, продолжите разговор с координатором и попросите обновить файл. Без их разрешения принятие заблокировано. Все HTTP(S)-ссылки из постановки должны быть перечислены в источниках.
-7. Нажмите **Принять анализ и план**. После этого содержание неизменно; для пересмотра нужен новый план. Максимум — 8 шагов с уникальными идентификаторами и зависимостями без циклов.
-8. У готового шага нажмите **Подобрать исполнителя**. Выбор идёт среди разрешённых профилей всех допустимых для шага агентов: Codex, Pi, Cursor. В JEV передаётся только `routingBrief`, до 800 байт, вместе с карточками профилей. При выключенном JEV используется допустимый резервный профиль.
-9. Проверьте выбранную пару и нажмите **Запустить подзадачу**. В инструкции исполнителю передаются локальный контекст, критерии и принятые краткие результаты зависимостей. Не более одного неподтверждённого запуска в одном плане.
-10. После проверки работы в Orca введите краткое подтверждение до 160 байт UTF-8 и нажмите **Подтвердить результат**. Это утверждение владельца после проверки, а не автоматический анализ качества. Зависимые шаги становятся доступны.
+1. Open **Workflow** in a local Orca workspace. Enter a task and references, up to 2000 UTF-8 bytes.
+2. Select a **Coordinator profile** and click **Prepare analysis**. The allowlisted pair is verified; neither JEV nor an agent starts.
+3. Enable explicit execution if needed. A configuration change invalidates the prepared coordinator decision: close that workflow and prepare again.
+4. Click **Launch coordinator through Orca**. Answer clarification questions in its chat. The coordinator is instructed to read sources, analyze the task, and write `analysis.json` at the displayed private path.
+5. Click **Read coordinator analysis**. Review conclusions, assumptions, sources, instructions, acceptance criteria, and routing briefs. Reading sources is reported by the coordinator, not technically proven by Fairway.
+6. Resolve questions and unavailable sources in the coordinator chat and request an updated file. Approval is blocked until they are resolved. All HTTP(S) links from the task must appear in the source list.
+7. Click **Approve analysis and workflow**. The accepted content is immutable; revisions require a new workflow. Up to 8 unique steps with an acyclic dependency graph are allowed.
+8. For a ready step, click **Select agent**. JEV chooses among allowed Codex, Pi, and Cursor profiles eligible for that step. It receives only the displayed `routingBrief`, up to 800 bytes, plus profile cards. Offline mode uses an eligible fallback.
+9. Review the pair and click **Launch subtask**. The executor receives local context, acceptance criteria, and accepted summaries of dependencies. A workflow permits only one dispatched step awaiting review.
+10. Inspect the work in Orca, enter a review of up to 160 UTF-8 bytes, then click **Accept result**. This is your attestation after checking, not automated quality verification. Dependent steps unlock.
 
-Подбор не является разрешением запуска. Состояние `submitted` означает принятие Orca, а не завершение задачи. При потерянном ответе запуск получает `dispatch_unknown`; повтор и зависимые действия блокируются. Проверьте Orca. Закрытие плана не останавливает работающего агента и не доказывает, что он завершился.
+Selection never authorizes execution. `submitted` means Orca accepted the dispatch, not that the task finished. A lost response produces `dispatch_unknown`, blocking retries and dependent work. Inspect Orca. **Close workflow** does not stop a running agent or prove it has finished.
 
-Профиль координатора выбран явно, потому что содержание задачи ещё не проанализировано. Оплата координатора и исполнителей относится к выбранным агентам. Бюджет Fairway ограничивает только решения JEV, общий для обычного подбора и всех планов.
+The coordinator profile is explicit because the task has not yet been analyzed. Coordinator and executor costs belong to their respective agents. The Fairway budget covers JEV decisions only, shared across direct routing and workflows.
 
-## Хранение и ограничения
+## Storage and boundaries
 
-В собственном хранилище Orca сохраняются постановка, принятый анализ, инструкции, состояния и краткие результаты. Это локальные рабочие данные. В аудите остаются только идентификаторы, состояния и сведения о подборе. Файлы анализа создаются в отдельных папках `~/.config/fairway-for-orca/workflows/<id>/`; на Unix папки имеют права 0700. Они не входят в Git и не удаляются автоматически при закрытии плана.
+Own Orca storage contains the task, accepted analysis, instructions, states, and short reviews. These are local working data, separate from the metadata-only audit. Analysis files live under `~/.config/fairway-for-orca/workflows/<id>/`; Unix directories have mode 0700. They stay outside Git and are not automatically deleted on workflow closure.
 
-Плагин читает только `analysis.json` из заранее созданной собственной папки. Ограничение — 32768 байт, дубликаты ключей, лишние поля и символические ссылки отклоняются. Пути из ответа координатора не исполняются и не используются для чтения файлов. На Windows права нужно контролировать ACL средствами ОС.
+Only `analysis.json` in a pre-created private directory is read. Limit: 32768 bytes. Duplicate JSON keys, extra fields, and symbolic links are rejected. Paths supplied by the coordinator are neither executed nor used for file reads. On Windows, manage ACLs through the OS.
 
-Исходный текст документов не загружается плагином и не передаётся JEV. Координатор использует собственные инструменты и разрешения Orca. Просьба не запускать собственных субагентов задана в его инструкции; это не ограничение ОС. Плагин управляет только запусками, которые проходят через Fairway. Внутренние субагенты и другие уже работающие агенты не перехватываются.
+The plugin does not fetch source documents or automatically send them to JEV. The coordinator uses its own tools and Orca permissions. Instructions prohibit it from creating agents, but this is not an OS sandbox. Fairway controls only dispatches that pass through it; internal subagents and other running agents are not intercepted.
 
-Шаги одного плана исполняются последовательно в выбранной папке. Изолированные рабочие копии, глобальная блокировка папки, автоматический приём результатов, автоматический пересмотр плана и восстановление неопределённого запуска в эту версию не входят. Если эффективная конфигурация или срок действия решения изменились, выполните подбор шага заново перед запуском.
+Steps run sequentially within a workflow in the selected workspace. Isolated worktrees, a global folder lock, automatic result acceptance, autonomous replanning, and recovery of unknown dispatch outcomes are not implemented. Reselect a step profile if its effective configuration or decision expiry changes before launch.
 
-Формат анализа задан в инструкции координатору (`coordinatorPrompt` в `src/core/workflow.ts`). Поля `instructions`, `context`, `acceptance` предназначены исполнителю; `routingBrief` — отдельно просматриваемое описание для JEV. Поля выбора модели в анализе запрещены: параметры запуска всегда берутся из разрешённого профиля.
+The coordinator prompt defines the analysis schema (`src/core/workflow.ts`). `instructions`, `context`, and `acceptance` are execution data; `routingBrief` is the separately reviewed JEV input. Model-selection fields in analysis are forbidden: dispatch parameters always come from allowlisted profiles.

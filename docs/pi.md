@@ -1,29 +1,29 @@
 # Pi Auto
 
-Нужен Pi с `registerVirtualModel` (интерфейс проверен по установленной версии 1.5.0). Расширение загружается явно и не меняет файлы Pi.
+Requires Pi with `registerVirtualModel` (interface checked against installed Pi 1.5.0). The extension is loaded explicitly and does not modify Pi files.
 
-1. В настройках Fairway добавьте профили `agent: "pi"` с точными `provider/model`, поддержанным усилием и `operatorConfirmed: true`. Это ваше утверждение после проверки пары, а не доказательство автоматического обнаружения.
-2. Во вкладке **Pi Auto** включите локальный сервис решений. Он слушает только `127.0.0.1` на свободном порту. Ключ JEV остаётся в хранилище Orca.
-3. Запустите Pi, явно загрузив файл расширения из клонированного репозитория:
+1. In Fairway **Settings**, add Pi profiles with exact `provider/model` IDs and supported efforts. Enable **I verified this pair in Pi** only after checking it yourself; this is operator attestation, not automatic discovery.
+2. In **Pi Auto**, enable **Local Pi decision service**. It listens on `127.0.0.1` at an ephemeral port. The JEV key stays in Orca secret storage.
+3. Load the extension from your cloned repository:
 
 ```sh
 pi --extension /absolute/path/to/orca-fairway/adapters/pi.ts --model fairway/auto
 ```
 
-4. Задайте разрешённое краткое описание отдельной командой Pi:
+4. Set a separately authorized brief:
 
 ```text
-/fairway-brief Небольшая утилита Python с прямыми приёмочными проверками, без сторонних зависимостей.
+/fairway-brief A small Python utility with direct acceptance checks and no third-party dependencies.
 ```
 
-5. Отправьте полную задачу в Pi. Внешнему сервису JEV уйдёт только описание из команды. Раскрытые файлы и история остаются у Pi и его исполняющего провайдера.
+5. Send the full task in Pi. Only the explicit brief goes to JEV. Expanded files and conversation history remain with Pi and its execution provider.
 
-Если `live: false`, сервис выдаёт разрешённый резервный профиль без обращения к JEV. Без явно заданного описания новый выбор отклоняется. После выбора модель и усилие закрепляются в состоянии ветки; продолжения, повторы и возобновления не запускают JEV заново. Pi может ограничить усилие своими правилами поддержки — фактическое значение следует проверять в его записях ответа.
+With `live: false`, the service returns an eligible fallback without JEV. A new decision requires an explicit brief. Once selected, the model and effort are pinned to the session branch; continuations, retries, and resumes do not reroute. Start a new session for a fresh choice. Pi may clamp effort to its supported values; inspect its response records for actual behavior.
 
-Сервис не имеет endpoint запуска агента и не является OpenAI-совместимым API генерации. Он ограничивает размер и частоту запросов, отклоняет браузерный Origin и требует случайное локальное удостоверение доступа. Файл `~/.config/fairway-for-orca/connection.json` создаётся с правами 0600, без ключа OpenRouter. Расширение читает только этот собственный файл; другой путь можно явно указать через `FAIRWAY_CONNECTION_FILE`.
+The service has no agent-dispatch endpoint and is not a generation proxy. It limits request size/rate, rejects browser Origin headers, and requires a random local capability. Its own `~/.config/fairway-for-orca/connection.json` is created with mode 0600 and contains no OpenRouter key. The extension reads only that file, or an explicit `FAIRWAY_CONNECTION_FILE` path.
 
-Отключение сервиса закрывает соединения и удаляет его собственный файл. После аварийного завершения файл может остаться; его наличие блокирует перезапись. Сначала убедитесь, что прежний сервис остановлен, затем удалите только оставшийся файл подключения. Удостоверение действительно не более суток; перезапустите сервис для нового подключения. Для Windows ACL файла необходимо контролировать средствами ОС: проверка Unix-прав там неприменима.
+Disabling the service closes connections and removes its own file. A crash may leave a stale file, which blocks overwrite. Confirm the previous service has stopped before removing that file. The capability expires after 24 hours; restart the service to renew it. On Windows, control file ACLs through the OS; Unix mode checks do not apply.
 
-`execution` управляет кнопкой запуска Orca, а не уже запущенным Pi. Выбор `fairway/auto` в Pi — явное разрешение этому клиенту использовать результат решения, но инструменты и подтверждения по-прежнему принадлежат Pi. Не включайте этот режим для описаний, которые нельзя передавать OpenRouter.
+`execution` controls the Orca dispatch button, not an already running Pi. Selecting `fairway/auto` explicitly authorizes that client to use the routing result; Pi retains its own tools and approvals. Do not use briefs that cannot be shared with OpenRouter.
 
-Появление виртуальной модели непосредственно в списке родного чата Orca отдельно не подтверждено. Универсальное внедрение расширения во все запуски Pi не выполняется.
+Availability of this virtual model in native Orca chat is not verified. The extension is not automatically injected into all Pi launches.
