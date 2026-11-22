@@ -95,6 +95,9 @@ async function loadHistory(): Promise<void> {
 }
 export function setup(ctx: PanelContext): void {
   const timer = setInterval(() => { if (read(state)?.workflow?.automatic?.state === 'running') void refresh() }, 2500)
+  const initialBalance = setTimeout(() => { if (!read(state)?.balance) void refreshBalance() }, 5000)
+  const balanceTimer = setInterval(() => { void refreshBalance() }, 5 * 60_000)
+  ctx.subscriptions.push({ dispose: () => { clearTimeout(initialBalance); clearInterval(balanceTimer) } })
   ctx.subscriptions.push({ dispose: () => clearInterval(timer) })
  ctx.subscriptions.push(settings.onDidChange(() => { void refresh() })); void refresh(); if (read(tab) === 'history') void loadHistory() }
 async function route(): Promise<void> {
@@ -133,6 +136,7 @@ async function keySave(remove = false): Promise<void> {
   try { await plugin.request('fairway.key', { key: remove ? '' : read(apiKey) }); set(apiKey, ''); await refresh(); set(keySaved, true) } catch (e) { set(apiKey, ''); showError(e) } finally { set(keyBusy, false) }
 }
 async function refreshBalance(): Promise<void> {
+  if (!read(state)?.keyPresent || read(keyBusy) || read(balanceLoading)) return
   const epoch = read(balanceEpoch) + 1; set(balanceEpoch, epoch); set(balanceLoading, true); set(balanceError, false)
   try {
     const balance = await plugin.request('fairway.balance', undefined, { timeoutMs: 12_000 })
@@ -273,7 +277,7 @@ export default function Panel() {
       <Card title={t('OpenRouter balance')}>
         <Stack gap="sm">
           {read(balanceLoading) ? <Spinner label={t('Refresh balance')} /> : null}
-          {read(balanceError) ? <Text tone="warning">{t('Unable to refresh balance. Try again.')}</Text> : null}
+          {read(balanceError) || s?.balance?.stale ? <Text tone="warning">{t('Unable to refresh balance. Try again.')}</Text> : null}
           <KeyValue items={[
             { label: t('Account balance'), value: balanceText(account) },
             { label: t('Key limit remaining'), value: balanceText(s?.balance?.key) },

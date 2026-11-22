@@ -84,3 +84,38 @@ test('secret-store failure and timeout are bounded and never expose exception de
   const hold = setInterval(() => {}, 1000)
   try { assert.equal((await hung.refresh()).account.state, 'timeout') } finally { clearInterval(hold) }
 })
+
+test('a transient refresh failure retains last known amounts and throttles repeated attempts', async () => {
+  let now = 100_000, requests = 0, fail = false, revoked = false
+  const balances = new Balances(async () => 'synthetic', async url => {
+    requests++
+    if (revoked) return { status: 401 }
+    if (fail && url === CREDITS_URL) return { status: 503 }
+    return url === CREDITS_URL
+      ? { status: 200, value: { data: { total_credits: 50, total_usage: 20 } } }
+      : { status: 200, value: { data: { limit: 10, limit_remaining: fail ? 3 : 4 } } }
+  }, 1000, () => now)
+
+  const good = await balances.refresh()
+  now += 30000
+  fail = true
+  const stale = await balances.refresh()
+  assert.equal(stale.account.remainingUsd, 30)
+  assert.equal(stale.key.remainingUsd, 3)
+  assert.equal(stale.checkedAt, good.checkedAt)
+  assert.equal(stale.stale, true)
+  assert.equal(balances.cached(), stale)
+  await balances.refresh()
+  assert.equal(requests, 4)
+
+  now += 30000
+  fail = false
+  const recovered = await balances.refresh()
+  assert.equal(recovered.checkedAt, now)
+  assert.equal(recovered.stale, undefined)
+
+  now += 30000
+  revoked = true
+  assert.equal((await balances.refresh()).account.state, 'invalid_key')
+  assert.equal(balances.cached()?.account.remainingUsd, null)
+})

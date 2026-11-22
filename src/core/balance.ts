@@ -4,7 +4,7 @@ export const CREDITS_URL = 'https://openrouter.ai/api/v1/credits'
 export const KEY_URL = 'https://openrouter.ai/api/v1/key'
 export type BalanceState = 'available' | 'unlimited' | 'restricted' | 'unavailable' | 'missing_key' | 'invalid_key' | 'timeout'
 export interface BalanceItem { state: BalanceState; remainingUsd: number | null }
-export interface BalanceSnapshot { account: BalanceItem; key: BalanceItem; checkedAt: number }
+export interface BalanceSnapshot { account: BalanceItem; key: BalanceItem; checkedAt: number; stale?: boolean }
 export type BalanceTransport = (url: string, key: string, signal: AbortSignal) => Promise<{ status: number; value?: unknown }>
 const empty = (state: BalanceState): BalanceItem => ({ state, remainingUsd: null })
 const money = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1e12
@@ -39,15 +39,33 @@ export function createBalanceTransport(http: JsonRequest = requestJson): Balance
 export const balanceTransport = createBalanceTransport()
 export class Balances {
   private snapshot: BalanceSnapshot | null = null
+  private lastAttemptAt: number | null = null
   private pending: Promise<BalanceSnapshot> | null = null
   private controller: AbortController | null = null
   private revision = 0
   constructor(private getKey: () => Promise<string | null>, private transport: BalanceTransport = balanceTransport, private timeoutMs = 8000, private now = Date.now) {}
   cached(): BalanceSnapshot | null { return this.snapshot }
-  invalidate(): void { this.revision++; this.snapshot = null; this.pending = null; this.controller?.abort(); this.controller = null }
+  invalidate(): void { this.revision++; this.snapshot = null; this.lastAttemptAt = null; this.pending = null; this.controller?.abort(); this.controller = null }
+  private record(account: BalanceItem, key: BalanceItem): BalanceSnapshot {
+    const previous = this.snapshot
+    const transient = (item: BalanceItem) => item.state === 'unavailable' || item.state === 'timeout'
+    const keepAccount = transient(account) && previous?.account.state === 'available'
+    const keepKey = transient(key) && (previous?.key.state === 'available' || previous?.key.state === 'unlimited')
+    this.lastAttemptAt = this.now()
+    this.snapshot = {
+      account: keepAccount ? previous!.account : account,
+      key: keepKey ? previous!.key : key,
+      checkedAt: (keepAccount || keepKey) && previous ? previous.checkedAt : this.lastAttemptAt,
+      ...(keepAccount || keepKey ? { stale: true } : {}),
+    }
+    return this.snapshot
+  }
   refresh(): Promise<BalanceSnapshot> {
-    if (this.snapshot && this.now() - this.snapshot.checkedAt >= 0 && this.now() - this.snapshot.checkedAt < 30000) return Promise.resolve(this.snapshot)
     if (this.pending) return this.pending
+    if (this.snapshot && this.lastAttemptAt !== null) {
+      const age = this.now() - this.lastAttemptAt
+      if (age >= 0 && age < 30000) return Promise.resolve(this.snapshot)
+    }
     const revision = this.revision, controller = new AbortController(); this.controller = controller
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(this.timeoutMs)])
     const request = (async () => {
@@ -56,7 +74,7 @@ export class Balances {
       catch {
         if (revision !== this.revision) throw new RouterError('balance_cancelled')
         const state = signal.reason?.name === 'TimeoutError' ? 'timeout' : 'unavailable'
-        this.snapshot = { account: empty(state), key: empty(state), checkedAt: this.now() }; return this.snapshot
+        return this.record(empty(state), empty(state))
       }
       if (revision !== this.revision) throw new RouterError('balance_cancelled')
       const read = async (url: string, parse: (value: unknown) => BalanceItem): Promise<BalanceItem> => {
@@ -73,7 +91,7 @@ export class Balances {
       }
       const [account, keyLimit] = key ? await Promise.all([read(CREDITS_URL, accountBalance), read(KEY_URL, keyBalance)]) : [empty('missing_key'), empty('missing_key')]
       if (revision !== this.revision) throw new RouterError('balance_cancelled')
-      this.snapshot = { account, key: keyLimit, checkedAt: this.now() }; return this.snapshot
+      return this.record(account, keyLimit)
     })().finally(() => { if (this.pending === request) { this.pending = null; this.controller = null } })
     this.pending = request; return request
   }
