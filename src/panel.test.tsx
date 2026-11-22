@@ -140,13 +140,16 @@ test('balance refresh is explicit and a restricted account never displays fabric
     'fairway.balance': () => { requests++; return { account: { state: 'restricted', remainingUsd: null }, key: { state: 'available', remainingUsd: 4 }, checkedAt: Date.now() } }
   } })
   const view = await mount(panel, { host })
-  assert.equal(requests, 0)
-  await view.press({ text: 'Refresh balance' }); assert.equal(requests, 1)
-  const tree = JSON.stringify(view.tree())
-  assert.ok(tree.includes('Management key required')); assert.ok(tree.includes('$4.0000'))
-  const items = view.findAll({ type: 'KeyValue' }).flatMap(node => (node.props.items ?? []) as { label: string; value: string }[])
-  assert.equal(items.find(item => item.label === 'Account balance')?.value, 'Management key required')
-  assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
+  try {
+    assert.equal(requests, 0)
+    await view.press({ text: 'Refresh balance' }); assert.equal(requests, 1)
+    const tree = JSON.stringify(view.tree())
+    assert.ok(tree.includes('Management key required')); assert.ok(tree.includes('$4.0000'))
+    assert.ok(view.find({ text: 'Account balance', type: 'Text' }))
+    assert.ok(view.find({ text: 'Management key required', type: 'Text' }))
+    assert.ok(!tree.includes('$0.0000'))
+    assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, [])
+  } finally { await view.unmount() }
 })
 test('a wrapped analysis error shows the actionable message rather than the generic failure', async () => {
   const workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }
@@ -188,4 +191,204 @@ test('failed analysis read shows safe field diagnostics; a successful retry clea
   assert.ok(!JSON.stringify(view.tree()).includes('Analysis validation details'))
   assert.ok(!JSON.stringify(view.tree()).includes('Operation stopped'))
   assert.deepEqual(view.errors, []); await view.unmount()
+})
+
+test('F01: every locale saves the none option as the machine value', async () => {
+  for (const locale of locales) {
+    let effort: unknown
+    const tr = (m: Parameters<typeof translate>[1]) => translate(locale, m)
+    const view = await mount(panel, { locale, host: mockHost({ requests: {
+      'fairway.status': () => status(),
+      'fairway.config': ({ config }) => { const c = validateConfig(JSON.parse(config)); effort = c.profiles[0]!.effort; return { ...status(), config: c } }
+    } }) })
+    await view.select({ label: tr('Section') }, 'settings')
+    await view.select({ label: tr('Profile effort') }, 'none')
+    await view.press({ text: tr('Save settings') })
+    assert.equal(effort, 'none', locale); assert.deepEqual(view.errors, []); await view.unmount()
+  }
+})
+test('F02: empty save cannot delete a key; explicit delete is separate and confirmed', async () => {
+  const keys: string[] = []
+  const view = await mount(panel, { host: mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), keyPresent: true }),
+    'fairway.key': ({ key }) => { keys.push(key); return { present: !!key } }
+  } }) })
+  await view.select({ label: 'Section' }, 'settings')
+  assert.equal(view.find({ text: 'Save key' })?.props.disabled, true)
+  assert.equal(keys.length, 0)
+  await view.type({ label: 'OpenRouter key' }, 'SYNTHETIC-KEY')
+  await view.press({ text: 'Save key' }); assert.deepEqual(keys, ['SYNTHETIC-KEY'])
+  assert.equal(view.valueOf({ label: 'OpenRouter key' }), '')
+  assert.ok(view.find({ text: 'Key updated' }))
+  await view.press({ text: 'Delete key' }); assert.deepEqual(keys, ['SYNTHETIC-KEY', ''])
+  assert.ok(!JSON.stringify(view.persisted).includes('SYNTHETIC-KEY')); await view.unmount()
+})
+test('F03: workspace drafts survive remount, secrets do not, and clear removes drafts', async () => {
+  const host = mockHost({ requests: { 'fairway.status': () => status() } })
+  let view = await mount(panel, { host })
+  await view.type({ label: 'Task description' }, 'LOCAL-DRAFT')
+  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'COORDINATOR-DRAFT')
+  await view.select({ label: 'Section' }, 'settings')
+  await view.type({ label: 'Total JEV budget, USD' }, '0.25', { replace: true })
+  await view.type({ label: 'OpenRouter key' }, 'SECRET-DRAFT')
+  const persisted = view.persisted; assert.ok(!JSON.stringify(persisted).includes('SECRET-DRAFT'))
+  await view.unmount(); view = await mount(panel, { host, persisted })
+  assert.equal(view.valueOf({ label: 'Total JEV budget, USD' }), '0.25')
+  assert.equal(view.valueOf({ label: 'OpenRouter key' }), '')
+  await view.select({ label: 'Section' }, 'task'); assert.equal(view.valueOf({ label: 'Task description' }), 'LOCAL-DRAFT')
+  await view.select({ label: 'Section' }, 'workflow'); assert.equal(view.valueOf({ label: 'Coordinator task' }), 'COORDINATOR-DRAFT')
+  await view.select({ label: 'Section' }, 'settings'); await view.press({ text: 'Clear drafts' })
+  const cleared = view.persisted; await view.unmount()
+  view = await mount(panel, { host, persisted: cleared })
+  assert.equal(view.valueOf({ label: 'Total JEV budget, USD' }), '0.1')
+  await view.select({ label: 'Section' }, 'task'); assert.equal(view.valueOf({ label: 'Task description' }), '')
+  await view.select({ label: 'Section' }, 'workflow'); assert.equal(view.valueOf({ label: 'Coordinator task' }), '')
+  await view.unmount()
+})
+test('F04/F05: restored plans are read only; lost launch responses stay blocked through refresh and remount', async () => {
+  let launches = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), lastPlan: example }), 'fairway.plan': () => example,
+    'fairway.cancel': () => ({ cancelled: true }),
+    'fairway.launch': () => { launches++; throw new Error('synthetic timeout') }
+  } })
+  let view = await mount(panel, { host })
+  assert.equal(view.find({ text: 'Launch through Orca' })?.props.disabled, true)
+  await view.type({ label: 'Task description' }, 'Synthetic'); await view.press({ text: 'Select profile' })
+  assert.equal(view.find({ text: 'Launch through Orca' })?.props.disabled, false)
+  await view.press({ text: 'Launch through Orca' })
+  assert.equal(launches, 1); assert.equal(view.find({ text: 'Launch through Orca' })?.props.disabled, true)
+  await view.press({ text: 'Refresh status' })
+  assert.equal(view.find({ text: 'Launch through Orca' })?.props.disabled, true)
+  assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
+  const persisted = view.persisted; await view.unmount(); view = await mount(panel, { host, persisted })
+  assert.equal(view.find({ text: 'Launch through Orca' })?.props.disabled, true)
+  assert.ok(JSON.stringify(view.tree()).includes('The dispatch outcome is unknown. Inspect Orca'))
+  assert.equal(launches, 1); await view.unmount()
+})
+test('F08: balance errors are local and a successful retry clears them without erasing another error', async () => {
+  let reads = 0
+  const view = await mount(panel, { host: mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), keyPresent: true }),
+    'fairway.plan': () => { throw new Error('synthetic failure') },
+    'fairway.balance': () => { if (++reads === 1) throw new Error('synthetic failure'); return { account: { state: 'available', remainingUsd: 4 }, key: { state: 'unlimited', remainingUsd: null }, checkedAt: 1 } }
+  } }) })
+  await view.type({ label: 'Task description' }, 'Synthetic'); await view.press({ text: 'Select profile' })
+  await view.press({ text: 'Refresh balance' }); assert.ok(view.find({ text: 'Unable to refresh balance. Try again.' }))
+  await view.press({ text: 'Refresh balance' }); assert.equal(view.find({ text: 'Unable to refresh balance. Try again.' }), null)
+  assert.ok(JSON.stringify(view.tree()).includes('$4.0000')); assert.ok(JSON.stringify(view.tree()).includes('Operation stopped'))
+  await view.unmount()
+})
+test('F09: multibyte task and coordinator inputs block requests before byte limits are exceeded', async () => {
+  let requests = 0
+  const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => { requests++; return example } } }) })
+  await view.type({ label: 'Task description' }, 'я'.repeat(2049)); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
+  await view.type({ label: 'Task description' }, '😀'.repeat(1024), { replace: true }); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, false)
+  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'я'.repeat(1001))
+  assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true); assert.equal(requests, 0); await view.unmount()
+})
+test('F10: a restored audit tab loads events and distinguishes failure from emptiness', async () => {
+  let reads = 0
+  const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.history': () => { if (++reads === 1) throw new Error('synthetic failure'); return { json: '[]' } } } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'history' } } })
+  assert.equal(reads, 1); assert.ok(view.find({ text: 'Unable to load events. Try again.' }))
+  // Two refresh buttons exist; the journal one is first in the rendered tree.
+  await view.press({ text: 'Refresh status' }); assert.equal(reads, 2); assert.ok(view.find({ text: 'No events yet' }))
+  await view.unmount()
+})
+
+function auditedWorkflow(state: 'planned' | 'submitted' | 'dispatch_unknown' | 'completed' = 'planned'): Workflow {
+  return { id: 'b'.repeat(36), workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, task: 'Synthetic', artifact: '/synthetic/analysis.json', coordinatorTask: 'Synthetic', coordinator: { ...example, state: 'submitted' }, approvedHash: 'approved', cancelled: false,
+    analysis: { version: 1, summary: 'Synthetic analysis', assumptions: [], questions: [], sources: [], steps: [
+      { id: 'one', title: 'First step', instructions: 'Long synthetic instructions', context: '', acceptance: 'Checks passed', routingBrief: 'Synthetic brief', allowedAgents: ['codex'], dependsOn: [] },
+      { id: 'two', title: 'Dependent step', instructions: 'Synthetic', context: '', acceptance: 'Checked', routingBrief: 'Synthetic brief', allowedAgents: ['codex'], dependsOn: ['one'] }
+    ] }, runs: { one: { state, plan: { ...example, state: state === 'submitted' ? 'submitted' : state === 'dispatch_unknown' ? 'dispatch_unknown' : 'shadow' }, review: state === 'completed' ? 'Checked' : null }, two: { state: 'waiting', plan: null, review: null } } }
+}
+test('F06/F09/F11: review stays above instructions, persists by step, and accepting reveals the next step', async () => {
+  let workflow = auditedWorkflow('submitted'), reviews = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), workflow }),
+    'fairway.workflow.action': input => { assert.equal(input.action, 'review'); reviews++; workflow = auditedWorkflow('completed'); return workflow }
+  } })
+  let view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  assert.equal(view.find({ text: 'Select agent: two' }), null)
+  await view.toggle({ label: 'Dependent step', type: 'Collapsible' })
+  assert.equal(view.find({ text: 'Select agent: two' })?.props.disabled, true)
+  assert.ok(JSON.stringify(view.tree()).includes('Review and accept dependency results first.'))
+  await view.type({ label: 'Reviewed result: one' }, 'я'.repeat(81)); assert.equal(view.find({ text: 'Accept result: one' })?.props.disabled, true)
+  await view.type({ label: 'Reviewed result: one' }, 'Verified', { replace: true })
+  const persisted = view.persisted; await view.unmount(); view = await mount(panel, { host, persisted })
+  assert.equal(view.valueOf({ label: 'Reviewed result: one' }), 'Verified')
+  const tree = JSON.stringify(view.tree()); assert.ok(tree.indexOf('Reviewed result: one') < tree.indexOf('Long synthetic instructions'))
+  await view.press({ text: 'Accept result: one' }); assert.equal(reviews, 1)
+  assert.equal(view.find({ text: 'Select agent: two' })?.props.disabled, false)
+  assert.equal(view.find({ text: 'Accept result: one' }), null)
+  assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
+})
+test('F04/F06: lost workflow launch reply locks dispatches and survives remount without retry', async () => {
+  let actions = 0
+  const workflow = auditedWorkflow()
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(true), workflow }), 'fairway.workflow.action': () => { actions++; throw new Error('synthetic timeout') } } })
+  let view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  await view.press({ text: 'Launch subtask: one' }); assert.equal(actions, 1)
+  assert.equal(view.find({ text: 'Launch subtask: one' })?.props.disabled, true)
+  assert.equal(view.find({ text: 'Select agent: one' })?.props.disabled, true)
+  const persisted = view.persisted; await view.unmount(); view = await mount(panel, { host, persisted })
+  assert.equal(view.find({ text: 'Launch subtask: one' })?.props.disabled, true)
+  assert.ok(JSON.stringify(view.tree()).includes('The dispatch outcome is unknown. Further dispatch'))
+  assert.equal(actions, 1); assert.deepEqual(view.errors, []); await view.unmount()
+})
+test('F07: workflow waiting identifies the operation and prevents duplicate preparation', async () => {
+  let resolve!: (value: Workflow) => void
+  const request = new Promise<Workflow>(r => { resolve = r })
+  const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status(), 'fairway.workflow.create': () => request } }), persisted: { plugin: { tab: 'workflow' } } })
+  await view.type({ label: 'Coordinator task' }, 'Synthetic')
+  const press = view.press({ text: 'Prepare analysis' })
+  await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r))
+  assert.equal(view.find({ type: 'Spinner' })?.props.label, 'Prepare analysis')
+  assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true)
+  resolve(auditedWorkflow()); await press; assert.equal(view.find({ type: 'Spinner' }), null)
+  assert.deepEqual(view.errors, []); await view.unmount()
+})
+test('F02: both key actions stay disabled while a key update is pending', async () => {
+  let resolve!: (value: { present: boolean }) => void
+  const update = new Promise<{ present: boolean }>(r => { resolve = r })
+  const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => ({ ...status(), keyPresent: true }), 'fairway.key': () => update } }) })
+  await view.select({ label: 'Section' }, 'settings'); await view.type({ label: 'OpenRouter key' }, 'SYNTHETIC-KEY')
+  const press = view.press({ text: 'Save key' }); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r))
+  assert.equal(view.find({ text: 'Save key' })?.props.disabled, true)
+  assert.equal(view.find({ text: 'Delete key' })?.props.disabled, true)
+  resolve({ present: true }); await press; assert.ok(view.find({ text: 'Key updated' })); await view.unmount()
+})
+test('F04: a confirmed workflow dispatch unlocks review after reconciliation without another dispatch', async () => {
+  let workflow = auditedWorkflow(), actions = 0
+  const host = mockHost({ requests: { 'fairway.status': () => ({ ...status(true), workflow }), 'fairway.workflow.action': () => { actions++; workflow = auditedWorkflow('submitted'); throw new Error('synthetic lost reply') } } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  await view.press({ text: 'Launch subtask: one' })
+  await view.type({ label: 'Reviewed result: one' }, 'Checked')
+  assert.equal(view.find({ text: 'Accept result: one' })?.props.disabled, false)
+  assert.equal(view.find({ text: 'Launch subtask: one' })?.props.disabled, true)
+  assert.equal(actions, 1); await view.unmount()
+})
+test('one automatic-plan action authorizes the graph and hides manual review for contracted steps', async () => {
+  const automaticWorkspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' as const }
+  const analysis = { version: 1 as const, summary: 'Synthetic automatic plan', assumptions: [], questions: [], sources: [], steps: [{ id: 'first', title: 'Synthetic first step', instructions: 'Synthetic work', acceptance: 'Synthetic check', context: '', routingBrief: 'Synthetic routine work', allowedAgents: ['codex' as const], dependsOn: [] }] }
+  let workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: automaticWorkspace, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis, approvedHash: null, cancelled: false, runs: {} }, calls = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), workflow }),
+    'fairway.workflow.action': input => {
+      assert.equal(input.action, 'startAutomatic'); calls++
+      workflow = { ...workflow, approvedHash: 'synthetic', automatic: { state: 'running', reason: null, approvedHash: 'synthetic', configHash: 'synthetic', expiresAt: Date.now() + 100000, dispatches: 1, limit: 1 }, runs: { first: { state: 'submitted', plan: { ...example, state: 'submitted' }, review: null, result: { path: '/synthetic-private/result.json', token: 'synthetic' } } } }
+      return workflow
+    }
+  } })
+  const view = await mount(panel, { host });
+  try {
+    await view.select({ label: 'Section' }, 'workflow')
+    assert.equal(calls, 0); await view.press({ text: 'Run plan automatically', type: 'Button' }); assert.equal(calls, 1)
+    assert.ok(view.find({ text: 'Pause automatic execution' }))
+    assert.equal(view.find({ label: 'Reviewed result: first' }), null)
+    assert.ok(JSON.stringify(view.tree()).includes('Waiting for the executor to finish and report checks.'))
+    assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
 })

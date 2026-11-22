@@ -10,6 +10,7 @@ import { preferences, withPreferences } from './core/preferences.ts'
 import { startBridge } from './core/bridge.ts'
 import { Workflows, type Artifacts } from './core/workflow.ts'
 import { PrivateArtifacts } from './core/artifacts.ts'
+import { Automatic } from './core/automatic.ts'
 import { Balances, type BalanceTransport } from './core/balance.ts'
 import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts'
 import type { Status } from './protocol.ts'
@@ -34,10 +35,24 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }
     const engine = new Engine(store, runtime, () => orca.secrets.get('openrouter'), transport)
     const workflows = new Workflows(store, engine, artifacts)
+    const automatic = new Automatic(store, workflows, engine, runtime)
+    await automatic.recover()
     const balances = new Balances(() => orca.secrets.get('openrouter'), balanceRequest)
     let bridge: Awaited<ReturnType<typeof startBridge>> | null = null
-    const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll() })
-    stop = async () => { settingsChanged.dispose(); engine.cancelAll(); balances.invalidate(); await bridge?.close(); bridge = null }
+    const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll(); void automatic.pause('settings_changed').catch(() => {}) })
+    let ticking = false, disposed = false
+    const timer = setInterval(() => {
+      if (ticking || disposed) return
+      ticking = true
+      void (async () => {
+        const target = await automatic.active(); if (!target) return
+        const list = await orca.host.call('workspace.list')
+        if (list.truncated || !list.workspaces.some(w => w.id === target.workspace.id && w.path === target.workspace.path && (w.hostId === 'local' || (w.kind === 'folder' && w.hostId === null)))) { await automatic.pause('operation_failed'); return }
+        await automatic.tick()
+      })().catch(() => automatic.pause('operation_failed').catch(() => {})).finally(() => { ticking = false })
+    }, 5000)
+    timer.unref()
+    stop = async () => { disposed = true; clearInterval(timer); await automatic.pause('interrupted').catch(() => {}); settingsChanged.dispose(); engine.cancelAll(); balances.invalidate(); await bridge?.close(); bridge = null }
     const workspace = async (): Promise<Workspace | null> => {
       const context = await orca.host.call('workspace.readContext')
       if (!context?.workspaceId) return null
@@ -76,7 +91,9 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       if (action === 'refreshCoordinator') return workflows.refreshCoordinator(id, w)
       if (action === 'read') return workflows.read(id, w)
       if (action === 'approve') return workflows.approve(id, w)
-      if (action === 'cancel') return workflows.cancel(id, w)
+      if (action === 'startAutomatic') return automatic.start(id, w)
+      if (action === 'pauseAutomatic') return automatic.pauseFor(id, w)
+      if (action === 'cancel') { const flow = await workflows.get(id, w); if (flow.automatic?.state === 'running') await automatic.pauseFor(id, w); return workflows.cancel(id, w) }
       requireThat(typeof stepId === 'string', 'invalid_workflow')
       if (action === 'route') return workflows.route(id, stepId, w)
       if (action === 'launch') return workflows.launch(id, stepId, w)
@@ -90,6 +107,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }))
     orca.panels.handle('fairway.key', safe(async ({ key }) => {
       requireThat(typeof key === 'string' && (key === '' || /^[\x21-\x7e]{16,4096}$/.test(key)), 'invalid_key')
+      await automatic.pause('settings_changed')
       balances.invalidate()
       if (key) await orca.secrets.set('openrouter', key); else await orca.secrets.delete('openrouter')
       engine.cancelAll()

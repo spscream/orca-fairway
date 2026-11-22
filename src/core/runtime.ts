@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { record, requireThat, RouterError, validateProfile } from './config.ts'
 import { parseJson } from './json.ts'
-import type { CommandResult, Evidence, Profile, Runtime, Workspace } from './types.ts'
+import type { CommandResult, Evidence, Profile, Runtime, Workspace, Plan } from './types.ts'
 export type Runner = (file: string, args: string[], options: { cwd?: string; env: NodeJS.ProcessEnv; timeout: number; maxBuffer?: number }) => Promise<CommandResult>
 export const runFile: Runner = (file, args, options) => new Promise((resolve, reject) => {
   execFile(file, args, { ...options, shell: false, windowsHide: true, maxBuffer: options.maxBuffer ?? 512 * 1024 }, (error, stdout) => {
@@ -76,6 +76,31 @@ export class NativeRuntime implements Runtime {
     const actual = /codex-cli\s+([^\s]+)/.exec(version.stdout)?.[1]
     if (!actual || cache.client_version !== actual) return { verified: false, source: 'codex_catalog_version_mismatch' }
     return { verified: codexPair(cache, profile), source: 'codex_version_matched_catalog' }
+  }
+  async observe(plan: Plan, workspace: Workspace): Promise<'working' | 'done' | 'blocked' | 'unknown'> {
+    const dispatch = plan.dispatch
+    if (!dispatch || workspace.host !== 'local') return 'unknown'
+    requireThat(/^[a-zA-Z0-9_:./-]{1,256}$/.test(dispatch.handle), 'invalid_plan')
+    const options = { cwd: workspace.path, env: childEnvironment(this.env), timeout: 5000 }
+    try {
+      if (dispatch.kind === 'terminal') {
+        const response = await this.run(orcaExecutable(this.env), ['terminal', 'wait', '--terminal', dispatch.handle, '--for', 'tui-idle', '--timeout-ms', '1', '--environment', 'local', '--json'], options)
+        const value = parseJson(response.stdout)
+        if (!record(value) || value.ok !== true || !record(value.result) || !record(value.result.wait)) return 'unknown'
+        const wait = value.result.wait
+        if (wait.handle !== dispatch.handle || wait.condition !== 'tui-idle') return 'unknown'
+        if (wait.blockedReason) return 'blocked'
+        return wait.satisfied === true ? 'done' : wait.satisfied === false ? 'working' : 'unknown'
+      }
+      const id = dispatch.sessionId || dispatch.handle.replace(/^orca_session_id:/, '')
+      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) return 'unknown'
+      const response = await this.run(orcaExecutable(this.env), ['agent', 'show', 'orca_session_id:' + id, '--environment', 'local', '--json'], options)
+      const value = parseJson(response.stdout)
+      if (!record(value) || value.ok !== true || !record(value.result) || value.result.orcaSessionId !== id || !Array.isArray(value.result.places)) return 'unknown'
+      const places = value.result.places.filter((p: unknown) => record(p) && p.agent === plan.profile.agent && p.hostId === 'local' && (p.worktreeId === workspace.id || (typeof p.worktreeId === 'string' && p.worktreeId.endsWith('::' + workspace.path))))
+      if (places.length !== 1 || !record(places[0])) return 'unknown'
+      return places[0].state === 'done' ? 'done' : places[0].state === 'working' ? 'working' : ['blocked', 'waiting'].includes(String(places[0].state)) ? 'blocked' : 'unknown'
+    } catch { return 'unknown' }
   }
   async launch(profile: Profile, task: string, workspace: Workspace): Promise<CommandResult> {
     validateProfile(profile)

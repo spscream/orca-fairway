@@ -4,13 +4,15 @@
 
 Implemented: a coordinator with an explicit allowlisted profile; analysis and clarification; approval of a subtask graph; profile selection after analysis; separate Orca dispatch; operator result review; persistent budget accounting and duplicate-dispatch prevention.
 
-## Next: executor reports
+## 0.6: reports and opt-in automatic execution
 
-Define structured reports bound to dispatch IDs, with checks and evidence. Receiving a report should prepare review material, not automatically accept success. Unknown dispatch outcomes must remain unknown. Then add a separate reviewer profile and versioned revisions of remaining work, requiring renewed approval.
+Implemented: structured reports bound to workflow, step, plan and nonce; one explicit graph authorization; sequential routing and dispatch; native turn-end monitoring; automatic acceptance of passing executor reports; deadlines, launch bounds and pause/recovery gates. Manual review remains available. Unknown dispatch outcomes remain unknown. Reports are self-reported evidence, not independent quality verification.
+
+Next: a separate reviewer profile and versioned revisions of remaining work, requiring renewed approval.
 
 ## Bounded automation
 
-Add native Orca isolated worktrees, authorization for a specific accepted graph, dispatch limits, stopping, and verifiable recovery. Only then allow ready steps to start automatically under a single explicit operator authorization. Unknown execution remains a stop condition, never a reason for a fresh retry.
+Add native Orca isolated worktrees, stronger project-wide locking and persistent wakeups independent of the panel/worker lifecycle. Current automation is restricted to one accepted graph and one executor, pauses on restart, and never retries an uncertain launch. Running agents remain under Orca stop controls.
 
 ## Measure routing quality
 

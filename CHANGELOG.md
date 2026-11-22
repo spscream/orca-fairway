@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- One explicit automatic-plan authorization replaces per-step selection, launch and result-acceptance clicks.
+- Sequential JEV routing, exact pair verification, native Orca completion monitoring and strict private result contracts.
+- Pause on questions, failed checks, missing or invalid results, routing failures, budget exhaustion, configuration/key changes and uncertain launches; never resume on plugin activation.
+- Bound authorization to one graph, 8 launches, a 30-minute per-step wait and a 2-hour window; agent billing remains separate from JEV accounting.
+- Preserve manual workflows and one-time review of already-submitted legacy work.
+- Integrate the operator’s concurrent UX improvements: workspace drafts, UTF-8 counters, clearer states, compact details, key-save feedback, loading and audit states, and persistent unknown-dispatch locks.
+- Complete UI coverage for all 11 supported locales.
+
 ## 0.5.4
 
 - Allow up to 32 analysis sources while preserving the 32 KiB file bound.

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { digest, Engine } from './engine.ts'
 import { record, requireThat, RouterError, validateTask } from './config.ts'
+import { resultInstructions, validateStepResult, type StepResult } from './results.ts'
 import { parseJson } from './json.ts'
 import type { Agent, Plan, Store, Workspace } from './types.ts'
 
@@ -16,14 +17,21 @@ export interface Analysis {
 export interface StepRun {
   state: 'waiting' | 'planned' | 'dispatch_pending' | 'submitted' | 'dispatch_unknown' | 'dispatch_failed' | 'completed'
   plan: Plan | null; review: string | null
+  result?: { token: string; path: string }
+  startedAt?: number
 }
 export interface Workflow {
   id: string; workspace: Workspace; task: string; artifact: string; coordinatorTask: string; coordinator: Plan
+  automatic?: AutomaticState
   analysis: Analysis | null; approvedHash: string | null; cancelled: boolean; runs: Record<string, StepRun>
 }
+export type AutomaticReason = 'paused' | 'interrupted' | 'settings_changed' | 'expired' | 'execution_disabled' | 'routing_failed' | 'unverified' | 'dispatch_unknown' | 'agent_blocked' | 'monitor_unavailable' | 'result_missing' | 'result_invalid' | 'checks_failed' | 'legacy_review' | 'step_timeout' | 'operation_failed'
+export interface AutomaticState { state: 'running' | 'paused' | 'completed'; reason: AutomaticReason | null; configHash: string; approvedHash: string; expiresAt: number; dispatches: number; limit: number }
 export interface Artifacts {
   create(id: string): Promise<string>
   read(id: string): Promise<string | null>
+  createResult?(id: string, stepId: string, token: string): Promise<string>
+  readResult?(id: string, stepId: string, token: string): Promise<string | null>
 }
 const fields = (x: Record<string, unknown>, names: string[]) => Object.keys(x).sort().join(',') === [...names].sort().join(',')
 export interface AnalysisIssue { path: string; rule: 'bytes' | 'items' | 'format' | 'dependencies'; actual?: number; limit?: number }
@@ -83,9 +91,11 @@ Task data: ${JSON.stringify(task)}`
 }
 export function stepPrompt(step: Step, workflow: Workflow): string {
   const dependencies = step.dependsOn.map(id => ({ id, acceptedResult: workflow.runs[id]!.review }))
-  const prompt = `Execute only this approved Fairway subtask in the current workspace. Do not launch other agents. Return evidence against acceptance criteria to the user; Fairway requires review before dependent work.
+  const prompt = `Execute only this approved Fairway subtask in the current workspace. Do not launch other agents. Return evidence against acceptance criteria. For manual steps, Fairway requires operator review before dependent work.
 Subtask data: ${JSON.stringify({ title: step.title, instructions: step.instructions, context: step.context, acceptance: step.acceptance, dependencies })}`
-  validateTask(prompt); return prompt
+  const run = workflow.runs[step.id]
+  const complete = prompt + (run?.result ? resultInstructions(workflow.id, step.id, run) : '')
+  validateTask(complete); return complete
 }
 export class Workflows {
   private tail: Promise<unknown> = Promise.resolve()
@@ -95,13 +105,27 @@ export class Workflows {
     const id = await this.store.get('workflowCurrent:' + digest(workspace))
     return typeof id === 'string' ? this.get(id, workspace) : null
   }
-  private async get(id: string, workspace: Workspace): Promise<Workflow> {
+  async get(id: string, workspace: Workspace): Promise<Workflow> {
     requireThat(/^[0-9a-f-]{36}$/.test(id), 'invalid_workflow')
     const value = await this.store.get('workflow:' + id)
     requireThat(record(value) && value.id === id && digest(value.workspace) === digest(workspace), 'workflow_workspace_changed')
     return value as unknown as Workflow
   }
   private async save(w: Workflow): Promise<Workflow> { await this.store.set('workflow:' + w.id, w); return w }
+  async automatic(id: string, workspace: Workspace, automatic: AutomaticState): Promise<Workflow> {
+    return this.serial(async () => {
+      const w = await this.get(id, workspace); requireThat(!w.cancelled && w.approvedHash === automatic.approvedHash, 'workflow_not_ready')
+      w.automatic = automatic; await this.engine.workflowEvent(id, 'automatic_' + automatic.state); return this.save(w)
+    })
+  }
+  async result(id: string, stepId: string, workspace: Workspace): Promise<StepResult | null> {
+    const w = await this.get(id, workspace), run = w.runs[stepId]
+    requireThat(run?.result && this.artifacts.readResult, 'result_contract_missing')
+    const raw = await this.artifacts.readResult(id, stepId, run.result.token)
+    if (raw === null) return null
+    requireThat(Buffer.byteLength(raw) <= 8192, 'invalid_step_result')
+    return validateStepResult(parseJson(raw), id, stepId, run)
+  }
   async create(task: string, profileId: string, workspace: Workspace): Promise<Workflow> {
     validateTask(task); requireThat(Buffer.byteLength(task) <= 2000, 'workflow_task_too_large')
     return this.serial(async () => {
@@ -183,22 +207,32 @@ export class Workflows {
     requireThat(!Object.values(w.runs).some(r => ['dispatch_pending', 'submitted', 'dispatch_unknown'].includes(r.state)), 'workflow_running')
     return step
   }
-  async route(id: string, stepId: string, workspace: Workspace): Promise<Workflow> {
+  async route(id: string, stepId: string, workspace: Workspace, automatic = false, signal?: AbortSignal): Promise<Workflow> {
     return this.serial(async () => {
       const w = await this.get(id, workspace), step = this.ready(w, stepId), run = w.runs[stepId]!
+      requireThat(automatic || w.automatic?.state !== 'running', 'automatic_running')
       requireThat(['waiting', 'planned'].includes(run.state), 'step_consumed')
       if (run.plan) await this.engine.cancel(run.plan.id)
+      const planId = randomUUID()
+      if (!automatic) delete run.result
+      if (automatic) {
+        requireThat(this.artifacts.createResult && this.artifacts.readResult, 'result_contract_missing')
+        const token = randomUUID(); run.result = { token, path: await this.artifacts.createResult(id, stepId, token) }
+        // The result contract is bound before hashing the exact executor prompt.
+        run.plan = { id: planId } as Plan
+      }
       const prompt = stepPrompt(step, w)
-      run.plan = await this.engine.plan(prompt, 'auto', workspace, randomUUID(), undefined, { routingTask: step.routingBrief, allowedAgents: step.allowedAgents })
+      run.plan = await this.engine.plan(prompt, 'auto', workspace, planId, signal, { routingTask: step.routingBrief, allowedAgents: step.allowedAgents })
       run.state = 'planned'; await this.engine.workflowEvent(id, 'step_planned', stepId); return this.save(w)
     })
   }
-  async launch(id: string, stepId: string, workspace: Workspace): Promise<Workflow> {
+  async launch(id: string, stepId: string, workspace: Workspace, automatic = false): Promise<Workflow> {
     return this.serial(async () => {
       const w = await this.get(id, workspace), step = this.ready(w, stepId), run = w.runs[stepId]!
+      requireThat(automatic || w.automatic?.state !== 'running', 'automatic_running')
       requireThat(run.state === 'planned' && run.plan && run.plan.evidence.verified, 'step_not_launchable')
       requireThat((await this.engine.config()).execution, 'execution_disabled')
-      run.state = 'dispatch_pending'; await this.save(w); await this.engine.workflowEvent(id, 'step_dispatch_pending', stepId)
+      run.state = 'dispatch_pending'; run.startedAt = Date.now(); await this.save(w); await this.engine.workflowEvent(id, 'step_dispatch_pending', stepId)
       try { run.plan = await this.engine.launch(run.plan.id, stepPrompt(step, w), workspace); run.state = run.plan.state === 'submitted' ? 'submitted' : run.plan.state === 'dispatch_failed' ? 'dispatch_failed' : 'dispatch_unknown' }
       catch (error) {
         const recorded = await this.store.get('plan:' + run.plan.id).catch(() => null)
@@ -208,10 +242,11 @@ export class Workflows {
       await this.engine.workflowEvent(id, run.state, stepId); return this.save(w)
     })
   }
-  async review(id: string, stepId: string, review: string, workspace: Workspace): Promise<Workflow> {
+  async review(id: string, stepId: string, review: string, workspace: Workspace, automatic = false): Promise<Workflow> {
     requireThat(typeof review === 'string' && review.trim().length > 0 && Buffer.byteLength(review) <= 160 && !review.includes('\0'), 'invalid_review')
     return this.serial(async () => {
       const w = await this.get(id, workspace), run = w.runs[stepId]
+      requireThat(automatic || w.automatic?.state !== 'running' || !run?.result, 'automatic_running')
       requireThat(!w.cancelled && run?.state === 'submitted', 'step_not_reviewable')
       run.review = review; run.state = 'completed'; await this.engine.workflowEvent(id, 'step_reviewed', stepId); return this.save(w)
     })

@@ -11,5 +11,6 @@ export function launchReceipt(value: unknown): NonNullable<Plan['dispatch']> | n
   // Retain identifiers only; never store prompt text, warnings or the full CLI response.
   const operationId = value.result.operationId ?? launch.operationId
   return { kind: kind as 'structured' | 'terminal', handle,
+    ...(typeof launch.outcome.sessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(launch.outcome.sessionId) ? { sessionId: launch.outcome.sessionId } : {}),
     ...(typeof operationId === 'string' && /^[a-zA-Z0-9_:.-]{1,160}$/.test(operationId) ? { operationId } : {}) }
 }

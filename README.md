@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.5.4 --json
+orca plugin install spscream/orca-fairway@v0.6.0 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -37,15 +37,17 @@ Orca's current manifest API accepts only static strings for native Settings labe
 5. For JEV decisions, save an **OpenRouter key**, enable **Allow paid JEV requests**, and click **Save settings**.
 6. To dispatch, enable **Allow explicit execution through Orca**, save, select a profile again, then click **Launch through Orca**.
 
-Only the entered description and configured profile cards go to JEV. Project files, conversation history, tools, and attachments are not collected automatically. The entered task is passed to the selected agent only after explicit dispatch. `live` permits paid decisions; `execution` permits the separate launch button. Neither enables automatic execution or changes ordinary Orca chats and global agent settings.
+Only the entered description and configured profile cards go to JEV. Project files, conversation history, tools, and attachments are not collected automatically. The entered task is passed to the selected agent only after explicit dispatch. `live` permits paid decisions; `execution` permits explicit launches. Neither setting starts automatic execution by itself or changes ordinary Orca chats and global agent settings.
 
 ## Analyze first, then select agents
 
-The **Workflow** tab provides: task and references → coordinator → approved analysis → per-subtask profile selection → explicit dispatch → result review.
+The **Workflow** tab provides: task and references → coordinator → reviewed analysis → **Run plan automatically** → sequential profile selection, execution, and result handling.
 
 The coordinator uses an explicitly selected profile, reads documentation with its own tools, asks questions in its Orca chat, and writes structured analysis to a private Fairway directory. JEV selects subtask profiles after approval. Only the displayed `routingBrief` goes to JEV; local context and execution instructions are kept separate.
 
-Preparing or approving analysis never starts agents. Every launch requires a separate button and enabled execution. Dependent steps unlock after you review and accept predecessor results. This release runs steps sequentially within a workflow; autonomous scheduling and interception of internal subagents are not implemented.
+Preparation never starts agents. After reviewing the analysis, **Run plan automatically** approves that exact graph and authorizes its remaining steps in the same workspace. Fairway selects each profile, verifies it, launches one executor at a time, and accepts a bound result report only after Orca confirms the turn ended and every reported check passed. This is automatic acceptance of executor evidence, not independent review. Questions, failed checks, invalid reports, routing errors, exhausted JEV budget and uncertain dispatch pause the graph. Manual controls remain available.
+
+Authorization is bounded to the graph (at most 8 launches), a 30-minute wait per step and a 2-hour window. These bounds stop new actions; a running agent must be stopped in Orca. Executor billing is separate from the JEV cap. Settings/key changes and worker restarts pause execution; loading or updating the plugin never resumes it automatically. A step already launched manually needs one manual review before subsequent steps can be automated. See [automatic execution](docs/automatic.md).
 
 See [workflow instructions](docs/workflows.md) and the [roadmap](docs/roadmap.md).
 
@@ -132,6 +134,6 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 0.4.3 uses an original open-frame buoy with a broad float and turquoise waves in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so the activity button uses the built-in flag symbol. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
 
-0.5.4 supports up to 32 analysis sources, discloses all coordinator limits and shows safe field-level validation diagnostics. 0.5.3 recognizes direct Orca launch receipts and gives localized assumptions/questions explicit 400-byte bounds. Existing unknown coordinators can still provide analysis without a repeat launch. 0.5.2 fixes OpenRouter IPv6 connection timeouts; an authenticated balance refresh succeeded in the Orca plugin host. 0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
+0.6.0 adds opt-in sequential execution with one graph authorization, per-step JEV selection, native completion monitoring, bound result reports, pause controls, and preserved manual workflows. Offline synthetic tests and Orca scenarios pass. No real automatic executor run or paid routing call was used to validate this release; independent result review, isolated worktrees and interception of agent-internal subagents remain unimplemented.
 
 Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.

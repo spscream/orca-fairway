@@ -25,7 +25,7 @@ export interface Plan {
   createdAt: number; expiresAt: number; configHash: string; taskHash: string; workspaceHash: string
   evidence: Evidence; costUsd: number | null; reservedMicrousd: number
   state: 'shadow' | 'cancelled' | 'dispatch_pending' | 'submitted' | 'dispatch_unknown' | 'dispatch_failed'
-  dispatch?: { kind: 'structured' | 'terminal'; handle: string; operationId?: string }
+  dispatch?: { kind: 'structured' | 'terminal'; handle: string; sessionId?: string; operationId?: string }
   observedModel: string | null; observedEffort: string | null
 }
 export interface Store { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
@@ -33,5 +33,6 @@ export interface Transport { (url: string, options: { body?: string; key?: strin
 export interface CommandResult { code: number; stdout: string }
 export interface Runtime {
   verify(profile: Profile): Promise<Evidence>
+  observe?(plan: Plan, workspace: Workspace): Promise<'working' | 'done' | 'blocked' | 'unknown'>
   launch(profile: Profile, task: string, workspace: Workspace): Promise<CommandResult>
 }
