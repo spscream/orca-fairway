@@ -23,7 +23,7 @@ function fixture(options: { execution?: boolean; live?: boolean } = {}) {
   const data = new Map<string, unknown>([['config', config]])
   const store: Store = { get: async k => structuredClone(data.get(k) ?? null), set: async (k, v) => { data.set(k, structuredClone(v)) } }
   const calls: unknown[][] = [], traffic: string[] = []; let keyReads = 0, raw: string | null = null
-  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async (...args) => { calls.push(args); return { code: 0, stdout: '{"ok":true,"result":{"launch":{}}}' } } }
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async (...args) => { calls.push(args); return { code: 0, stdout: '{"ok":true,"result":{"outcome":{"kind":"structured","handle":"orca_session_id:synthetic"},"prompt":{"outcome":"journaled"}}}' } } }
   const transport: Transport = async (_url, options) => {
     if (!options.body) return { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } } }
     traffic.push(options.body)
@@ -166,4 +166,19 @@ test('a blocked coordinator can refresh verification without changing its task o
   assert.equal(refreshed.coordinator.evidence.verified, true); assert.notEqual(refreshed.coordinator.id, original.coordinator.id)
   assert.equal(f.calls.length, 0); assert.equal(f.traffic.length, 0)
   assert.equal((f.data.get('plan:' + original.coordinator.id) as any).state, 'cancelled')
+})
+test('an existing unknown coordinator can supply analysis without permitting another launch', async () => {
+  const f = fixture({ execution: true }), w = await f.flows.create('Synthetic task', 'standard', workspace)
+  w.coordinator.state = 'dispatch_unknown'; await f.store.set('workflow:' + w.id, w)
+  f.setRaw(analysis()); const loaded = await f.flows.read(w.id, workspace)
+  assert.ok(loaded.analysis); assert.equal(loaded.coordinator.state, 'dispatch_unknown')
+  await f.flows.approve(w.id, workspace)
+  await assert.rejects(f.flows.launchCoordinator(w.id, workspace), /workflow_not_ready/)
+  assert.equal(f.calls.length, 0)
+})
+test('analysis assumptions and questions have explicit UTF-8 bounds suitable for localized text', () => {
+  const a = analysis(); a.assumptions = ['я'.repeat(101)]; a.questions = ['я'.repeat(200)]
+  assert.equal(validateAnalysis(a).assumptions[0], a.assumptions[0])
+  a.questions = ['я'.repeat(201)]; assert.throws(() => validateAnalysis(a), /invalid_analysis/)
+  a.questions = []; a.assumptions = Array(9).fill('Synthetic'); assert.throws(() => validateAnalysis(a), /invalid_analysis/)
 })

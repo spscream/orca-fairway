@@ -1,3 +1,5 @@
+import { launchReceipt } from './launch-receipt.ts'
+import { parseJson } from './json.ts'
 import { createHash, randomUUID } from 'node:crypto'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig, validateProfile, validateTask } from './config.ts'
 import { httpTransport, makeRequest, METADATA_URL, DECISIONS_URL, RESERVATION_MICROUSD, validatePrice, validateAnswer } from './jev.ts'
@@ -146,8 +148,10 @@ export class Engine {
     try {
       const result = await this.runtime.launch(plan.profile, task, workspace)
       let receipt: unknown
-      try { receipt = JSON.parse(result.stdout) } catch { receipt = null }
-      plan.state = result.code === 0 && record(receipt) && receipt.ok === true && record(receipt.result) && record(receipt.result.launch) ? 'submitted' : result.code !== 0 ? 'dispatch_failed' : 'dispatch_unknown'
+      try { receipt = parseJson(result.stdout) } catch { receipt = null }
+      const confirmed = result.code === 0 ? launchReceipt(receipt) : null
+      if (confirmed) plan.dispatch = confirmed
+      plan.state = confirmed ? 'submitted' : result.code !== 0 ? 'dispatch_failed' : 'dispatch_unknown'
     } catch { plan.state = 'dispatch_unknown' }
     await this.serial(() => this.store.set('plan:' + id, plan))
     await this.audit({ id, state: plan.state, profile: plan.profile.id })

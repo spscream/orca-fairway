@@ -65,7 +65,7 @@ test('turning execution off in native settings blocks a launch waiting on verifi
 })
 test('workflow handlers connect synthetic analysis, cross-agent routing and guarded dispatch', async () => {
   let launches = 0
-  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { launches++; return { code: 0, stdout: '{"ok":true,"result":{"launch":{}}}' } } }
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { launches++; return { code: 0, stdout: '{"ok":true,"result":{"outcome":{"kind":"structured","handle":"orca_session_id:synthetic"},"prompt":{"outcome":"journaled"}}}' } } }
   const raw = JSON.stringify({ version: 1, summary: 'Synthetic', assumptions: [], questions: [], sources: [], steps: [{ id: 'check', title: 'Synthetic check', instructions: 'Inspect synthetic result', acceptance: 'Synthetic check passes', context: '', routingBrief: 'Small synthetic check', allowedAgents: ['codex'], dependsOn: [] }] })
   const host = mockHost({ results: {
     'workspace.readContext': { workspaceId: 'synthetic', branch: 'main', displayName: 'Synthetic', terminals: [] },

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+- Recognize the direct `agent launch` response, as well as wrapped receipts, with explicit prompt-delivery confirmation.
+- Keep only dispatch identifiers; incomplete responses still block retries.
+- Specify the previously omitted assumptions/questions limits in the coordinator prompt and allow up to 400 UTF-8 bytes per item, at most eight each.
+- Verify that an existing unknown coordinator can provide valid analysis without another launch.
+
 ## 0.5.2
 
 - Fix OpenRouter connection timeouts on hosts with broken IPv6 routing by using a dedicated IPv4 HTTPS transport for balance and JEV.

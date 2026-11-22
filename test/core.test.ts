@@ -16,7 +16,7 @@ function fixture(options: { live?: boolean; execution?: boolean; key?: string | 
   const calls: unknown[][] = [], traffic: { url: string; body?: string; key?: string }[] = []
   let keyReads = 0
   const store: Store = { get: async k => structuredClone(data.get(k) ?? null), set: async (k, v) => { data.set(k, structuredClone(v)) } }
-  const runtime: Runtime = { verify: async () => ({ verified: options.verified ?? true, source: 'synthetic_metadata' }), launch: async (...args) => { calls.push(args); return { code: 0, stdout: JSON.stringify({ ok: true, result: { launch: { outcome: { kind: 'structured' } } } }) } } }
+  const runtime: Runtime = { verify: async () => ({ verified: options.verified ?? true, source: 'synthetic_metadata' }), launch: async (...args) => { calls.push(args); return { code: 0, stdout: JSON.stringify({ ok: true, result: { outcome: { kind: 'structured', handle: 'orca_session_id:synthetic' }, prompt: { outcome: 'journaled' } } }) } } }
   const transport: Transport = options.transport ?? (async (url, opt) => { traffic.push({ url, body: opt.body, key: opt.key }); return opt.body ? response() : metadata })
   const engine = new Engine(store, runtime, async () => { keyReads++; return options.key === undefined ? 'synthetic-secret-12345678' : options.key }, transport, options.timeout ?? 2000)
   return { engine, data, config, runtime, store, calls, traffic, get keyReads() { return keyReads } }
@@ -215,4 +215,12 @@ test('Codex metadata output overflow is bounded by the process runner and never 
   await assert.rejects(runFile(process.execPath, ['-e', 'process.stdout.write("x".repeat(4096))'], { env: {}, timeout: 1000, maxBuffer: 128 }), /command_output_too_large/)
   const runtime = new NativeRuntime({}, async () => { throw new RouterError('command_output_too_large') }, async () => { throw new Error('must not read fallback') })
   await assert.rejects(runtime.verify(DEFAULT_CONFIG.profiles[0]!), /command_output_too_large/)
+})
+test('direct Orca agent-launch response confirms one dispatch and never permits a duplicate', async () => {
+  const f = fixture({ execution: true })
+  const plan = await f.engine.plan('Synthetic launch contract', 'codex', workspace)
+  const sent = await f.engine.launch(plan.id, 'Synthetic launch contract', workspace)
+  assert.equal(sent.state, 'submitted'); assert.equal(sent.dispatch?.handle, 'orca_session_id:synthetic')
+  await assert.rejects(f.engine.launch(plan.id, 'Synthetic launch contract', workspace), /plan_not_launchable/)
+  assert.equal(f.calls.length, 1)
 })

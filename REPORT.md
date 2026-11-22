@@ -1,4 +1,34 @@
-# Fairway for Orca — verification report 0.5.2
+# Fairway for Orca — verification report 0.5.3
+
+Fixed two operator-reported workflow failures. Orca had actually started the coordinator chat, but Fairway expected `result.launch`, the wrapper used by worktree creation, instead of the direct `result.outcome` returned by `agent launch`. The receipt parser now accepts both shapes and requires a recognized surface, bounded handle and delivered prompt (`journaled` or `handed-to-terminal`). Only dispatch identifiers are retained; task text, raw response, warnings and receipt prose are discarded. Incomplete replies remain unknown and cannot be launched again.
+
+A second read error was an assumption of 202 UTF-8 bytes exceeding a previously undocumented 200-byte limit. Assumptions/questions now have explicit 400-byte limits, at most eight entries each, stated in the coordinator prompt. The 32 KiB file limit, strict keys, source gates, routing-brief limits and dependency checks are preserved. The existing private artifact was checked locally and validates with three steps; its contents were not changed or used as a test fixture. No analysis was approved or dispatched on the operator’s behalf.
+
+## Evidence and scope
+
+Read-only Orca metadata confirmed that the coordinator chat already existed and was working in this repository. No new agent was launched, messaged, resumed or stopped. REA statically inspected exactly three shipped CLI modules (`agent-launch`, `agent-launch-request`, `agent-launch-recovery`); selected handlers return the direct launch result and format its outcome/receipt. Parent Evidence: `ev_b6b2ba5f9ab69708269078886e759946645474eb65b7a1d491470f22b2c4f00a`. The retained evidence and installed application source remain private, outside the published surface. This is partial static inspection, not full-app analysis or a new observed launch. The lost original receipt cannot be reconstructed from a chat title, so the existing unknown state is not silently changed to submitted.
+
+## Validation and usage
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+npm run test:orca
+npm run check:orca
+npm run validate
+npm run audit:public
+git diff --check
+```
+
+Results: **72/72** standalone tests, **89/89** through Orca and **12** panel scenarios without issues or warnings. Type checks, manifest validation and source audit pass. Synthetic regressions cover direct/wrapped/terminal receipts, delivered versus pending prompts, identifier injection, stripped private fields, one-time dispatch, reading analysis from an existing unknown coordinator, localized byte boundaries and array limits. Previous safety and budget coverage remains green.
+
+Paid/model requests: **0**. Cost: **$0**. No requests to OpenRouter or model providers were made by this patch. No secret files or other working repositories were read. No new permissions, dependencies or language keys were introduced. Updating the stable plugin preserves the existing workflow and running coordinator.
+
+Usage: update to **0.5.3**, then click **Read coordinator analysis** in the existing plan. The already-produced artifact now validates; inspect it before approval. Do not launch the coordinator again. Future confirmed launches show submitted; genuinely lost replies still block retries. Actual task execution and automatic reconciliation remain outside this patch.
+
+## Previous release: 0.5.2
+
 
 Resolved the reported balance timeout. Anonymous diagnostics isolated the network problem: curl and Node HTTPS with `family: 4` reached OpenRouter and received the expected HTTP 401, while Node fetch timed out and explicit IPv6 failed. Fairway now uses a dedicated built-in HTTPS transport with IPv4 selected per request. It does not modify global Node, DNS, proxy, or operating-system settings. The same transport is used for balance, JEV pricing metadata and decision requests.
 
