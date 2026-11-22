@@ -159,5 +159,7 @@ export default {
   "JEV disabled": "JEV désactivé",
   "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Les versions du catalogue Codex et de la CLI diffèrent. Mettez à jour le catalogue du compte sélectionné, puis vérifiez à nouveau ce profil.",
   "Refresh coordinator profile": "Actualiser le profil du coordinateur",
-  "Launch the coordinator before reading its analysis.": "Lancez le coordinateur avant de lire son analyse."
+  "Launch the coordinator before reading its analysis.": "Lancez le coordinateur avant de lire son analyse.",
+  "Analysis validation details": "Détails de validation de l’analyse",
+  "Ask the coordinator to correct the listed fields and rewrite the analysis file.": "Demandez au coordinateur de corriger les champs indiqués et de réécrire le fichier d’analyse."
 } satisfies Record<Message, string>

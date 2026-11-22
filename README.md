@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.5.3 --json
+orca plugin install spscream/orca-fairway@v0.5.4 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -132,6 +132,6 @@ See [architecture](docs/architecture.md), [verification report](REPORT.md), and 
 
 0.4.3 uses an original open-frame buoy with a broad float and turquoise waves in the plugin listing and panel header. Orca currently limits the sidebar activity button to built-in symbols, so the activity button uses the built-in flag symbol. The 256×256 PNG is bundled locally; permissions and behavior are unchanged.
 
-0.5.3 recognizes direct Orca launch receipts and gives localized assumptions/questions explicit 400-byte bounds. Existing unknown coordinators can still provide analysis without a repeat launch. 0.5.2 fixes OpenRouter IPv6 connection timeouts; an authenticated balance refresh succeeded in the Orca plugin host. 0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
+0.5.4 supports up to 32 analysis sources, discloses all coordinator limits and shows safe field-level validation diagnostics. 0.5.3 recognizes direct Orca launch receipts and gives localized assumptions/questions explicit 400-byte bounds. Existing unknown coordinators can still provide analysis without a repeat launch. 0.5.2 fixes OpenRouter IPv6 connection timeouts; an authenticated balance refresh succeeded in the Orca plugin host. 0.5.1 reads the available Codex binary’s own bundled catalog, avoiding shared-cache version conflicts. 0.5.0 added explicit read-only OpenRouter balance refresh and fixed workflow request validation. Use **Refresh coordinator profile** to recheck an existing unstarted coordinator without re-entering its task. Offline tests and Orca scenarios pass. Live end-to-end adapter execution and paid JEV calls from the plugin remain unverified; no savings or quality superiority is claimed.
 
 Remote workspaces, mobile UI, transparent Auto in the native Orca model list, a universal generation proxy, and per-tool model switching are not supported.

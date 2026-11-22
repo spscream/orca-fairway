@@ -159,5 +159,7 @@ export default {
   "JEV disabled": "JEV 已禁用",
   "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex 目录与 CLI 版本不同。请更新所选账户的目录，然后重新验证此配置。",
   "Refresh coordinator profile": "刷新协调器配置",
-  "Launch the coordinator before reading its analysis.": "请先启动协调器，再读取其分析。"
+  "Launch the coordinator before reading its analysis.": "请先启动协调器，再读取其分析。",
+  "Analysis validation details": "分析验证详情",
+  "Ask the coordinator to correct the listed fields and rewrite the analysis file.": "请让协调员修正列出的字段并重新写入分析文件。"
 } satisfies Record<Message, string>

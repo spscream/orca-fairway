@@ -62,6 +62,10 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }
     orca.panels.handle('fairway.status', safe(status))
     orca.panels.handle('fairway.balance', safe(() => balances.refresh()))
+    orca.panels.handle('fairway.workflow.inspect', safe(async ({ id }) => {
+      const w = await workspace(); requireThat(w, 'local_workspace_required')
+      return workflows.inspect(id, w)
+    }))
     orca.panels.handle('fairway.workflow.create', safe(async ({ task, profileId }) => {
       const w = await workspace(); requireThat(w, 'local_workspace_required')
       return workflows.create(task, profileId, w)

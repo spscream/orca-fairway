@@ -1,8 +1,8 @@
 import { t } from './ui-i18n.ts'
 import { atom, Badge, Button, Callout, Card, Code, Input, plugin, read, Row, Select, set, Stack, Text, Textarea } from 'orca'
 import type { Status, WorkflowAction } from './protocol.ts'
-import type { Workflow } from './core/workflow.ts'
-const task = atom(''), coordinatorProfile = atom(''), pending = atom(false), review = atom('')
+import type { Workflow, AnalysisIssue } from './core/workflow.ts'
+const task = atom(''), coordinatorProfile = atom(''), pending = atom(false), review = atom(''), validation = atom<AnalysisIssue | null>(null)
 export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, error: (e: unknown) => void) {
   const w = s?.workflow, waiting = read(pending)
   const finished = !!w?.analysis && w.analysis.steps.every(step => w.runs[step.id]?.state === 'completed')
@@ -11,7 +11,15 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
     try { changed(await fn()) } catch (e) { error(e) } finally { set(pending, false) }
   }
   const action = (action: WorkflowAction, stepId?: string) => perform(async () => {
-    const result = await plugin.request('fairway.workflow.action', { id: w!.id, action, ...(stepId === undefined ? {} : { stepId }), ...(action === 'review' ? { review: read(review) } : {}) }, { timeoutMs: 60_000 })
+    set(validation, null)
+    let result: Workflow
+    try { result = await plugin.request('fairway.workflow.action', { id: w!.id, action, ...(stepId === undefined ? {} : { stepId }), ...(action === 'review' ? { review: read(review) } : {}) }, { timeoutMs: 60_000 }) }
+    catch (e) {
+      if (action === 'read') {
+        try { const check = await plugin.request('fairway.workflow.inspect', { id: w!.id }); set(validation, check.issue ?? null) } catch { /* Keep the original safe error. */ }
+      }
+      throw e
+    }
     if (action === 'review') set(review, '')
     return result
   })
@@ -23,6 +31,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
       <Button disabled={waiting || !s?.workspace || !read(task).trim()} onPress={() => perform(() => plugin.request('fairway.workflow.create', { task: read(task), profileId: read(coordinatorProfile) || s!.config.fallback }))}>{t("Prepare analysis")}</Button>
     </Stack> : null}
     {w && !w.cancelled ? <Stack gap="md">
+      {read(validation) ? <Callout tone="warning" title={t('Analysis validation details')}><Text>{t('Ask the coordinator to correct the listed fields and rewrite the analysis file.')}</Text><Code block>{JSON.stringify(read(validation), null, 2)}</Code></Callout> : null}
       <Card title={t("Coordinator")} description={`${w.coordinator.profile.agent} · ${w.coordinator.profile.model} · ${w.coordinator.profile.effort ?? 'native'}`}>
         <Stack gap="sm">
           <Text>{t("Original task:")} {w.task}</Text>

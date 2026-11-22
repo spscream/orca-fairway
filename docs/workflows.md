@@ -32,3 +32,16 @@ Steps run sequentially within a workflow in the selected workspace. Isolated wor
 The coordinator prompt defines the analysis schema (`src/core/workflow.ts`). `instructions`, `context`, and `acceptance` are execution data; `routingBrief` is the separately reviewed JEV input. Model-selection fields in analysis are forbidden: dispatch parameters always come from allowlisted profiles.
 
 Assumptions and questions each allow at most eight strings of 400 UTF-8 bytes. The coordinator prompt states these limits. The complete analysis remains bounded to 32 KiB; other field limits and dependency checks are unchanged.
+
+Analysis limits are stated in the coordinator prompt. Failed reads show only field paths, rule identifiers, and numeric lengths/counts; diagnostic output excludes field contents. Ask the coordinator to correct the indicated field, then read again. Inspection does not approve, route, dispatch, or mutate the workflow.
+
+| Field | Limit |
+| --- | --- |
+| Whole file | 32768 UTF-8 bytes |
+| Summary | 800 bytes |
+| Assumptions / questions | 8 entries each, 400 bytes per entry |
+| Sources | 32 entries; reference 300 bytes, summary 400 bytes |
+| Steps | 1–8, unique ASCII IDs, acyclic dependencies |
+| Step ID / title | 40 / 160 bytes |
+| Instructions / acceptance / context / routing brief | 1200 / 400 / 600 / 800 bytes |
+| Dependencies / allowed agents | 7 unique step IDs / 1–3 unique supported agents |

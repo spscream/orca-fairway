@@ -158,6 +158,8 @@ export const en = {
   "JEV disabled": "JEV disabled",
   "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.",
   "Refresh coordinator profile": "Refresh coordinator profile",
-  "Launch the coordinator before reading its analysis.": "Launch the coordinator before reading its analysis."
+  "Launch the coordinator before reading its analysis.": "Launch the coordinator before reading its analysis.",
+  "Analysis validation details": "Analysis validation details",
+  "Ask the coordinator to correct the listed fields and rewrite the analysis file.": "Ask the coordinator to correct the listed fields and rewrite the analysis file."
 } as const
 export type Message = keyof typeof en

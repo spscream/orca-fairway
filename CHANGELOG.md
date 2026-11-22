@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.4
+
+- Allow up to 32 analysis sources while preserving the 32 KiB file bound.
+- State every coordinator collection and text limit, including UTF-8 byte semantics.
+- Add read-only, metadata-only analysis inspection and localized field diagnostics after failed reads.
+- Verify the current private artifact through the actual Orca worker without modifying its workflow.
+
 ## 0.5.3
 
 - Recognize the direct `agent launch` response, as well as wrapped receipts, with explicit prompt-delivery confirmation.

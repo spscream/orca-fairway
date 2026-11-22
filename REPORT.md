@@ -1,4 +1,32 @@
-# Fairway for Orca — verification report 0.5.3
+# Fairway for Orca — verification report 0.5.4
+
+Resolved another invalid-analysis report in a newly created workflow. Its file contained 14 sources, exceeding the previous limit of 12. The prior release had checked a different workflow artifact, which is why that validation result did not establish this file’s validity. The source count limit was also missing from the coordinator instructions. The new limit is 32 sources; the overall 32768-byte cap, strict schema, field bounds, dependency checks and approval gates remain in force. The prompt now discloses all collection and byte limits and explicitly distinguishes UTF-8 bytes from characters.
+
+Failed reads now request a separate read-only inspection. The panel displays only a static field path, validation rule, and numeric actual/maximum values. Field contents, source references, task text and exception prose are excluded. Byte bounds name their field, collection failures show counts, schema failures identify the affected object, and dependency errors identify steps. All 11 languages include the two added UI messages, for 162 keys total. Successful retry clears the prior error and diagnostics.
+
+## Verification
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+npm run test:orca
+npm run check:orca
+npm run validate
+npm run audit:public
+git diff --check
+```
+
+Results: **74/74** standalone tests, **92/92** through Orca and **12** panel scenarios with no issues or warnings. Type checks, manifest validation and public-surface audit pass. New synthetic coverage accepts 14 sources, rejects 33 with exact metadata, reports UTF-8 field lengths, proves inspection is read-only and workspace-bound, verifies prompt constraints, and tests diagnostics followed by a successful retry. Existing dispatch, budget and injection checks remain green.
+
+The current private artifact was read through a temporary handler inside the actual Orca worker using the production `Workflows.read`, strict parser and private-artifact reader. Result: valid, 14 sources, 3 steps. This probe used a synthetic in-memory store, so it neither changed nor approved the operator’s workflow. No artifact text was copied into tests or published. The temporary development plugin was unloaded; restaging removes the private diagnostic handler and workflow identifier before release.
+
+Paid/model requests: **0**, cost **$0**. No OpenRouter requests, new coordinators, executors or AI workers were launched. No secret files or other working repositories were read. Native plugin workers and synthetic tests only. No dependencies or permissions were added.
+
+Usage: update to **0.5.4**, then click **Read coordinator analysis** on the current plan. Its existing file now passes the actual worker path; no rewrite or coordinator restart is needed. Future rejected files identify the offending field. The operator still reviews and explicitly approves analysis before any routing or execution.
+
+## Previous release: 0.5.3
+
 
 Fixed two operator-reported workflow failures. Orca had actually started the coordinator chat, but Fairway expected `result.launch`, the wrapper used by worktree creation, instead of the direct `result.outcome` returned by `agent launch`. The receipt parser now accepts both shapes and requires a recognized surface, bounded handle and delivered prompt (`journaled` or `handed-to-terminal`). Only dispatch identifiers are retained; task text, raw response, warnings and receipt prose are discarded. Incomplete replies remain unknown and cannot be launched again.
 

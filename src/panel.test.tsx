@@ -169,3 +169,23 @@ test('refreshing an unverified coordinator enables its launch without dispatchin
   assert.equal(view.find({ text: 'Launch coordinator through Orca' })?.props.disabled, false); assert.equal(actions, 1)
   assert.deepEqual(view.errors, []); assert.deepEqual(view.refusals, []); await view.unmount()
 })
+test('failed analysis read shows safe field diagnostics; a successful retry clears both errors', async () => {
+  let reads = 0, inspections = 0
+  let workflow: Workflow = { id: 'a'.repeat(36), task: 'Synthetic', workspace: { id: 'synthetic', path: '/synthetic-project', host: 'local' }, artifact: '/synthetic-private/analysis.json', coordinatorTask: 'Synthetic', coordinator: example, analysis: null, approvedHash: null, cancelled: false, runs: {} }
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), workflow }),
+    'fairway.workflow.action': input => {
+      assert.equal(input.action, 'read'); reads++
+      if (reads === 1) throw Object.assign(new Error('invalid_analysis'), { code: 'invalid_analysis' })
+      workflow = { ...workflow, analysis: { version: 1, summary: 'Synthetic loaded analysis', assumptions: [], questions: [], sources: [], steps: [] } }; return workflow
+    },
+    'fairway.workflow.inspect': input => { assert.equal(input.id, workflow.id); inspections++; return { valid: false, issue: { path: 'sources', rule: 'items', actual: 33, limit: 32 } } }
+  } })
+  const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'workflow')
+  await view.press({ text: 'Read coordinator analysis' }); assert.equal(inspections, 1)
+  assert.ok(JSON.stringify(view.tree()).includes('Analysis validation details')); assert.ok(JSON.stringify(view.tree()).includes('sources'))
+  await view.press({ text: 'Read coordinator analysis' }); assert.equal(reads, 2)
+  assert.ok(!JSON.stringify(view.tree()).includes('Analysis validation details'))
+  assert.ok(!JSON.stringify(view.tree()).includes('Operation stopped'))
+  assert.deepEqual(view.errors, []); await view.unmount()
+})

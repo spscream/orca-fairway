@@ -159,5 +159,7 @@ export default {
   "JEV disabled": "JEV devre dışı",
   "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex kataloğu ve CLI sürümleri farklı. Seçili hesabın kataloğunu güncelleyin, ardından bu profili yeniden denetleyin.",
   "Refresh coordinator profile": "Koordinatör profilini yenile",
-  "Launch the coordinator before reading its analysis.": "Analizi okumadan önce koordinatörü başlatın."
+  "Launch the coordinator before reading its analysis.": "Analizi okumadan önce koordinatörü başlatın.",
+  "Analysis validation details": "Analiz doğrulama ayrıntıları",
+  "Ask the coordinator to correct the listed fields and rewrite the analysis file.": "Koordinatörden belirtilen alanları düzeltmesini ve analiz dosyasını yeniden yazmasını isteyin."
 } satisfies Record<Message, string>

@@ -159,5 +159,7 @@ export default {
   "JEV disabled": "JEV 비활성화됨",
   "Codex catalog and CLI versions differ. Update the selected account catalog, then refresh this profile.": "Codex 카탈로그와 CLI 버전이 다릅니다. 선택한 계정의 카탈로그를 업데이트한 후 이 프로필을 다시 확인하세요.",
   "Refresh coordinator profile": "조정자 프로필 새로 고침",
-  "Launch the coordinator before reading its analysis.": "분석을 읽기 전에 조정자를 실행하세요."
+  "Launch the coordinator before reading its analysis.": "분석을 읽기 전에 조정자를 실행하세요.",
+  "Analysis validation details": "분석 검증 세부 정보",
+  "Ask the coordinator to correct the listed fields and rewrite the analysis file.": "코디네이터에게 표시된 필드를 수정하고 분석 파일을 다시 작성하도록 요청하세요."
 } satisfies Record<Message, string>
