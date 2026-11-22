@@ -1,4 +1,5 @@
 export const en = {
+  "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "The prepared executor prompt exceeds 65536 UTF-8 bytes.",
   "Read executor report": "Read executor report",
   "Executor report": "Executor report",
   "Step completion:": "Step completion:",

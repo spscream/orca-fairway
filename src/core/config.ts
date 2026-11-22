@@ -1,4 +1,4 @@
-import { COORDINATOR_TASK_BYTES, COORDINATOR_PROMPT_BYTES } from './limits.ts'
+import { COORDINATOR_TASK_BYTES, COORDINATOR_PROMPT_BYTES, WORKFLOW_PROMPT_BYTES } from './limits.ts'
 import type { Config, Profile } from './types.ts'
 import { PROFILE_LEVELS } from './profile-level.ts'
 export class RouterError extends Error {
@@ -53,6 +53,10 @@ export function validateCoordinatorTask(x: unknown): asserts x is string {
 export function validateCoordinatorPrompt(x: unknown): asserts x is string {
   requireThat(typeof x === 'string' && x.trim().length > 0 && !x.includes('\0'), 'invalid_task')
   requireThat(Buffer.byteLength(x) <= COORDINATOR_PROMPT_BYTES, 'coordinator_prompt_too_large')
+}
+export function validateWorkflowPrompt(x: unknown): asserts x is string {
+  requireThat(typeof x === 'string' && x.trim().length > 0 && !x.includes('\0'), 'invalid_task')
+  requireThat(Buffer.byteLength(x) <= WORKFLOW_PROMPT_BYTES, 'workflow_prompt_too_large')
 }
 // Examples only: launch remains blocked until metadata verifies the exact pair.
 export const DEFAULT_CONFIG: Config = {

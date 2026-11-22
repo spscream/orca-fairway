@@ -27,7 +27,7 @@ export interface Plan {
   createdAt: number; expiresAt: number; configHash: string; taskHash: string; workspaceHash: string
   evidence: Evidence; costUsd: number | null; reservedMicrousd: number
   state: 'shadow' | 'cancelled' | 'dispatch_pending' | 'submitted' | 'dispatch_unknown' | 'dispatch_failed'
-  purpose?: 'coordinator'
+  purpose?: 'coordinator' | 'workflow'
   dispatch?: { kind: 'structured' | 'terminal'; handle: string; sessionId?: string; operationId?: string }
   observedModel: string | null; observedEffort: string | null
 }

@@ -259,3 +259,24 @@ test('unlimited decisions still require bounded per-request pricing and refuse c
   f.data.set('ledger', { calls: Number.MAX_SAFE_INTEGER, reservedMicrousd: 0 })
   assert.equal((await f.engine.plan('Synthetic overflow check', 'codex', workspace)).reason, 'invalid_ledger'); assert.equal(posts, 0)
 })
+
+test('extended workflow prompts stay local while only the bounded routing brief reaches JEV', async () => {
+  const f = fixture({ live: true, execution: true }), task = 'LOCAL-WORKFLOW-MARKER' + 'я'.repeat(3000), brief = 'Synthetic verification with dependency reports.'
+  const p = await f.engine.plan(task, 'auto', workspace, undefined, undefined, { workflow: true, routingTask: brief, allowedAgents: ['codex'] })
+  assert.equal(p.purpose, 'workflow'); assert.equal(p.state, 'shadow'); assert.equal(f.calls.length, 0)
+  assert.equal(JSON.parse(f.traffic.find(t => t.body)!.body!).state.task_description, brief)
+  assert.equal(JSON.stringify(f.traffic).includes('LOCAL-WORKFLOW-MARKER'), false)
+  assert.equal(JSON.stringify(await f.engine.history()).includes('LOCAL-WORKFLOW-MARKER'), false)
+  await f.engine.launch(p.id, task, workspace); assert.equal(f.calls.length, 1); assert.equal(f.calls[0]![1], task)
+})
+test('workflow prompt bounds and purpose guards do not widen direct task or JEV description limits', async () => {
+  const f = fixture(), options = { workflow: true, routingTask: 'Synthetic brief', allowedAgents: ['codex' as const] }
+  const p = await f.engine.plan('я'.repeat(32768), 'auto', workspace, undefined, undefined, options)
+  assert.equal(p.purpose, 'workflow')
+  await assert.rejects(f.engine.plan('я'.repeat(32769), 'auto', workspace, undefined, undefined, options), /workflow_prompt_too_large/)
+  await assert.rejects(f.engine.plan('x'.repeat(4097), 'codex', workspace), /invalid_task/)
+  await assert.rejects(f.engine.plan('x'.repeat(5000), 'auto', workspace, undefined, undefined, { ...options, routingTask: 'x'.repeat(4097) }), /invalid_task/)
+  for (const bad of [{ workflow: true }, { ...options, allowedAgents: [] }, { ...options, allowedAgents: ['codex', 'codex'] }, { ...options, profileId: 'standard' }, { ...options, coordinator: true }]) await assert.rejects(f.engine.plan('x'.repeat(5000), 'auto', workspace, undefined, undefined, bad as any), /invalid_workflow_plan/)
+  await assert.rejects(f.engine.plan('x'.repeat(5000), 'codex', workspace, undefined, undefined, options), /invalid_workflow_plan/)
+  assert.equal(f.traffic.length, 0); assert.equal(f.calls.length, 0); assert.equal((await f.engine.ledger()).calls, 0)
+})

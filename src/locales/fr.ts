@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "La consigne préparée pour l’exécutant dépasse 65536 octets UTF-8.",
   "Read executor report": "Lire le rapport de l’exécutant",
   "Executor report": "Rapport de l’exécutant",
   "Step completion:": "Achèvement de l’étape :",

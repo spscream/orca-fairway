@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "準備的執行者指令超過 65536 個 UTF-8 位元組。",
   "Read executor report": "讀取執行者報告",
   "Executor report": "執行者報告",
   "Step completion:": "步驟完成情況：",

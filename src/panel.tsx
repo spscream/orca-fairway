@@ -22,6 +22,7 @@ const apiKey = atom(''), busy = atom(false), error = atom<Message | ''>(''), act
 const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
   const known: Record<string, Message> = {
+    workflow_prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
     automatic_budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     automatic_workflow_active: 'Another workflow is running automatically. Pause it before starting this plan.', automatic_running: 'Pause automatic execution before using manual controls.',
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',

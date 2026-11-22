@@ -7,7 +7,7 @@ import { Workflows, type Analysis, type Artifacts, type Workflow } from '../src/
 import { validateStepResult } from '../src/core/results.ts'
 import type { Store, Runtime, Transport } from '../src/core/types.ts'
 const workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' as const }
-function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean; confidence?: number; choice?: string; transportError?: string } = {}) {
+function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean; confidence?: number; choice?: string; transportError?: string; resultPrefix?: string } = {}) {
   const config = structuredClone(DEFAULT_CONFIG); config.live = true; config.execution = options.execution ?? true; config.maxCalls = options.maxCalls ?? 5
   const memory = new Map<string, unknown>([['config', config]]), reports = new Map<string, string>()
   const store: Store = { get: async k => structuredClone(memory.get(k) ?? null), set: async (k, v) => { memory.set(k, structuredClone(v)) } }
@@ -21,7 +21,7 @@ function fixture(options: { key?: string | null; maxCalls?: number; invalidChoic
     return { answers: { profile: { type: 'choice', choice, confidence: options.confidence ?? 1, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: 0.000001 } }
   }
   let analysis: Analysis = { version: 1, summary: 'Synthetic analysis', assumptions: [], questions: [], sources: [], steps: ['first', 'second'].map((id, i) => ({ id, title: 'Synthetic step', instructions: 'Perform a synthetic check.', acceptance: 'Synthetic check passes.', context: '', routingBrief: 'Synthetic bounded work.', allowedAgents: ['codex'], dependsOn: i ? ['first'] : [] })) }
-  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async () => JSON.stringify(analysis), createResult: async (_id, step, token) => `/synthetic-private/result-${step}-${token}.json`, readResult: async (_id, _step, token) => reports.get(token) ?? null }
+  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async () => JSON.stringify(analysis), createResult: async (_id, step, token) => `${options.resultPrefix ?? '/synthetic-private'}/result-${step}-${token}.json`, readResult: async (_id, _step, token) => reports.get(token) ?? null }
   const engine = new Engine(store, runtime, async () => options.key === undefined ? 'synthetic-key' : options.key, transport), flows = new Workflows(store, engine, artifacts)
   const automatic = new Automatic(store, flows, engine, runtime, () => now)
   const create = async () => { const w = await flows.create('Synthetic task', config.fallback, workspace); await flows.read(w.id, workspace); return w.id }
@@ -241,4 +241,26 @@ test('version two report findings are strictly bounded and bound to the original
   const value = await f.report(id, 'first', { version: 2, findings: [] }), run = (await f.flows.get(id, workspace)).runs.first!
   const finding = { severity: 'P0', summary: 'Synthetic finding', evidence: 'Synthetic evidence' }
   for (const overrides of [{ findings: undefined }, { findings: Array(9).fill(finding) }, { findings: [{ ...finding, severity: ['P0'] }] }, { findings: [{ ...finding, summary: 'я'.repeat(81) }] }, { findings: [{ ...finding, evidence: 'x'.repeat(401) }] }, { findings: [{ ...finding, command: 'synthetic' }] }, { token: 'wrong' }, { status: ['completed'] }, { version: 3 }]) assert.throws(() => validateStepResult({ ...value, ...overrides }, id, 'first', run), /invalid_step_result/)
+})
+
+test('a long dependent validation task with a report contract can route and launch without the short-description limit', async () => {
+  const f = fixture({ resultPrefix: '/synthetic-private/' + 'x'.repeat(120) }), prompts: string[] = []
+  const launch = f.runtime.launch; f.runtime.launch = async (...args) => { prompts.push(args[1]); return launch(...args) }
+  f.setAnalysis({ version: 1, summary: 'Synthetic plan', assumptions: [], questions: [], sources: [], steps: [
+    { id: 'first', title: 'Synthetic audit', instructions: 'Synthetic review', context: '', acceptance: 'Synthetic evidence', routingBrief: 'Synthetic bounded audit.', allowedAgents: ['codex'], dependsOn: [] },
+    { id: 'second', title: 'я'.repeat(45), instructions: 'я'.repeat(598) + 'x', context: 'я'.repeat(203) + 'x', acceptance: 'я'.repeat(128), routingBrief: 'Synthetic bounded verification.', allowedAgents: ['codex'], dependsOn: ['first'] }
+  ] })
+  const id = await f.create(); await f.automatic.start(id, workspace); await f.automatic.tick()
+  await f.report(id); f.observed = 'done'; await f.automatic.tick(); await f.automatic.tick()
+  const w = await f.flows.get(id, workspace)
+  assert.equal(w.automatic!.state, 'running'); assert.equal(w.runs.second!.state, 'submitted'); assert.equal(w.runs.second!.plan!.purpose, 'workflow')
+  assert.ok(Buffer.byteLength(prompts[1]!) > 4096); assert.equal(f.launches, 2); assert.equal(f.decisions, 2)
+})
+
+test('an oversized prepared prompt pauses with a precise reason before a routing request or launch', async () => {
+  const f = fixture(), id = await f.create(); await f.automatic.start(id, workspace)
+  f.flows.route = async () => { throw new RouterError('workflow_prompt_too_large') }
+  const w = (await f.automatic.tick())!
+  assert.equal(w.automatic!.state, 'paused'); assert.equal(w.automatic!.reason, 'prompt_too_large')
+  assert.equal(f.launches, 0); assert.equal(f.decisions, 0)
 })

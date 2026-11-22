@@ -1,7 +1,7 @@
 import { routingBudget, routingFailure } from './routing-budget.ts'
 import { atLeastFallback } from './profile-level.ts'
 import { digest, Engine } from './engine.ts'
-import { record, requireThat } from './config.ts'
+import { record, requireThat, RouterError } from './config.ts'
 import { Workflows, type AutomaticReason, type AutomaticState, type Workflow } from './workflow.ts'
 import type { Runtime, Store, Workspace } from './types.ts'
 interface Active { id: string; workspace: Workspace }
@@ -129,7 +129,7 @@ export class Automatic {
         w = await this.flows.launch(w.id, step.id, w.workspace, true)
         if (w.runs[step.id]!.state !== 'submitted') return this.mark(w, 'paused', 'dispatch_unknown')
         return w
-      } catch { return this.mark(await this.flows.get(w.id, w.workspace), 'paused', 'operation_failed') }
+      } catch (error) { return this.mark(await this.flows.get(w.id, w.workspace), 'paused', error instanceof RouterError && error.code === 'workflow_prompt_too_large' ? 'prompt_too_large' : 'operation_failed') }
       finally { this.controller = null; this.planId = null }
     })
   }

@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "準備された実行担当への指示が65536 UTF-8バイトを超えています。",
   "Read executor report": "実行担当のレポートを読む",
   "Executor report": "実行担当のレポート",
   "Step completion:": "ステップの完了:",

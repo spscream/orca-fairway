@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { digest, Engine } from './engine.ts'
-import { record, requireThat, RouterError, validateTask, validateCoordinatorTask, validateCoordinatorPrompt } from './config.ts'
+import { record, requireThat, RouterError, validateCoordinatorTask, validateCoordinatorPrompt, validateWorkflowPrompt } from './config.ts'
 import { resultInstructions, validateStepResult, type StepResult } from './results.ts'
 import { parseJson } from './json.ts'
 import type { Agent, Plan, Store, Workspace } from './types.ts'
@@ -26,7 +26,7 @@ export interface Workflow {
   automatic?: AutomaticState
   analysis: Analysis | null; approvedHash: string | null; cancelled: boolean; runs: Record<string, StepRun>
 }
-export type AutomaticReason = 'budget_exhausted' | 'missing_key' | 'routing_timeout' | 'low_confidence' | 'invalid_choice' | 'pricing_unbounded' | 'http_error' | 'paused' | 'interrupted' | 'settings_changed' | 'expired' | 'execution_disabled' | 'routing_failed' | 'unverified' | 'dispatch_unknown' | 'agent_blocked' | 'monitor_unavailable' | 'result_missing' | 'result_invalid' | 'checks_failed' | 'legacy_review' | 'step_timeout' | 'operation_failed'
+export type AutomaticReason = 'budget_exhausted' | 'missing_key' | 'routing_timeout' | 'low_confidence' | 'invalid_choice' | 'pricing_unbounded' | 'http_error' | 'paused' | 'interrupted' | 'settings_changed' | 'expired' | 'execution_disabled' | 'routing_failed' | 'unverified' | 'dispatch_unknown' | 'agent_blocked' | 'monitor_unavailable' | 'result_missing' | 'result_invalid' | 'checks_failed' | 'legacy_review' | 'step_timeout' | 'operation_failed' | 'prompt_too_large'
 export interface AutomaticState { state: 'running' | 'paused' | 'completed'; reason: AutomaticReason | null; configHash: string; approvedHash: string; expiresAt: number; dispatches: number; limit: number }
 export interface Artifacts {
   create(id: string): Promise<string>
@@ -96,7 +96,7 @@ export function stepPrompt(step: Step, workflow: Workflow): string {
 Subtask data: ${JSON.stringify({ title: step.title, instructions: step.instructions, context: step.context, acceptance: step.acceptance, dependencies })}`
   const run = workflow.runs[step.id]
   const complete = prompt + (run?.result ? resultInstructions(workflow.id, step.id, run) : '')
-  validateTask(complete); return complete
+  validateWorkflowPrompt(complete); return complete
 }
 export class Workflows {
   private tail: Promise<unknown> = Promise.resolve()
@@ -229,7 +229,7 @@ export class Workflows {
         run.plan = { id: planId } as Plan
       }
       const prompt = stepPrompt(step, w)
-      run.plan = await this.engine.plan(prompt, 'auto', workspace, planId, signal, { routingTask: step.routingBrief, allowedAgents: step.allowedAgents })
+      run.plan = await this.engine.plan(prompt, 'auto', workspace, planId, signal, { workflow: true, routingTask: step.routingBrief, allowedAgents: step.allowedAgents })
       run.state = 'planned'; await this.engine.workflowEvent(id, 'step_planned', stepId); return this.save(w)
     })
   }

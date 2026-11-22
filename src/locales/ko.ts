@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "The prepared executor prompt exceeds 65536 UTF-8 bytes.": "준비된 실행자 지시가 UTF-8 기준 65536바이트를 초과합니다.",
   "Read executor report": "실행자 보고서 읽기",
   "Executor report": "실행자 보고서",
   "Step completion:": "단계 완료:",
