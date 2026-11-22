@@ -25,7 +25,7 @@ export interface Workflow {
   automatic?: AutomaticState
   analysis: Analysis | null; approvedHash: string | null; cancelled: boolean; runs: Record<string, StepRun>
 }
-export type AutomaticReason = 'paused' | 'interrupted' | 'settings_changed' | 'expired' | 'execution_disabled' | 'routing_failed' | 'unverified' | 'dispatch_unknown' | 'agent_blocked' | 'monitor_unavailable' | 'result_missing' | 'result_invalid' | 'checks_failed' | 'legacy_review' | 'step_timeout' | 'operation_failed'
+export type AutomaticReason = 'budget_exhausted' | 'missing_key' | 'routing_timeout' | 'low_confidence' | 'invalid_choice' | 'pricing_unbounded' | 'http_error' | 'paused' | 'interrupted' | 'settings_changed' | 'expired' | 'execution_disabled' | 'routing_failed' | 'unverified' | 'dispatch_unknown' | 'agent_blocked' | 'monitor_unavailable' | 'result_missing' | 'result_invalid' | 'checks_failed' | 'legacy_review' | 'step_timeout' | 'operation_failed'
 export interface AutomaticState { state: 'running' | 'paused' | 'completed'; reason: AutomaticReason | null; configHash: string; approvedHash: string; expiresAt: number; dispatches: number; limit: number }
 export interface Artifacts {
   create(id: string): Promise<string>

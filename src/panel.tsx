@@ -21,12 +21,13 @@ const apiKey = atom(''), busy = atom(false), error = atom<Message | ''>(''), act
 const tab = atom('tab', 'task', { persist: 'plugin' })
 function showError(e: unknown): void {
   const known: Record<string, Message> = {
+    automatic_budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     automatic_workflow_active: 'Another workflow is running automatically. Pause it before starting this plan.', automatic_running: 'Pause automatic execution before using manual controls.',
     local_workspace_required: 'A local Orca workspace is required.', execution_disabled: 'Execution is disabled in Fairway settings.',
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
     plan_not_launchable: 'The decision was cancelled, expired, or already used.', plan_already_consumed: 'This decision cannot be dispatched again.',
     no_profiles_for_agent: 'Add profiles for the selected agent in Settings.', invalid_config: 'Check the profile settings.', invalid_task: 'The description must contain 1–4096 UTF-8 bytes.',
-    invalid_budget: 'Budget: 0–10 USD, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be an integer from 0 to 100.',
+    invalid_budget: 'Budget must be nonnegative, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be a nonnegative integer.',
     invalid_profile_id: 'ID: start with a lowercase ASCII letter; use letters, digits, hyphens or underscores, up to 40 characters.',
     invalid_effort: 'Select a supported effort.', invalid_model: 'Enter an exact model ID without spaces or commands.', invalid_description: 'The profile description must contain 1–400 characters.',
     duplicate_profile: 'Profile IDs must be unique.', invalid_fallback: 'Select an existing fallback profile.',
@@ -98,8 +99,8 @@ async function launch(): Promise<void> {
 async function save(): Promise<void> {
   set(error, ''); set(saving, true)
   try {
-    if (!/^\d+$/.test(read(calls).trim()) || Number(read(calls)) > 100) throw new Error('invalid_call_limit')
-    const config = { ...read(draft), budgetMicrousd: budgetFromText(read(budget)), maxCalls: Number(read(calls)) }
+    if (!read(draft).unlimitedJev && (!/^\d+$/.test(read(calls).trim()) || !Number.isSafeInteger(Number(read(calls))))) throw new Error('invalid_call_limit')
+    const config = { ...read(draft), budgetMicrousd: read(draft).unlimitedJev ? read(draft).budgetMicrousd : budgetFromText(read(budget)), maxCalls: read(draft).unlimitedJev ? read(draft).maxCalls : Number(read(calls)) }
     const result = await plugin.request('fairway.config', { config: JSON.stringify(config) })
     set(activeId, null); apply(result, true); set(plan, null)
   } catch (e) { showError(e) } finally { set(saving, false) }
@@ -140,8 +141,10 @@ function settingsForm() {
       <Stack gap="sm">
         <Switch label={t("Allow paid JEV requests")} checked={config.live} onChange={live => change({ live })} />
         <Switch label={t("Allow explicit execution through Orca")} checked={config.execution} onChange={execution => change({ execution })} />
-        <Input label={t("Total JEV budget, USD")} value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
-        <Input label={t("JEV attempt limit")} value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
+        <Switch label={t("Unlimited JEV decisions")} checked={config.unlimitedJev} onChange={unlimitedJev => change({ unlimitedJev })} />
+        {config.unlimitedJev ? <Text tone="warning">{t('No JEV attempt or reserve cap. Usage accounting continues; charges can exhaust the OpenRouter balance or key limit.')}</Text> : null}
+        <Input label={t("Total JEV budget, USD")} disabled={config.unlimitedJev} value={read(budget)} onChange={v => { set(budget, v); set(dirty, true) }} />
+        <Input label={t("JEV attempt limit")} disabled={config.unlimitedJev} value={read(calls)} onChange={v => { set(calls, v); set(dirty, true) }} />
         <Text muted>{t("Selecting a profile never starts an agent. Limits are cumulative; saving does not reset accounting.")}</Text>
       </Stack>
     </Card>
@@ -173,7 +176,7 @@ export default function Panel() {
         set(error, ''); reconcileWorkflow(w)
         const current = read(state); if (current) set(state, { ...current, workflow: w })
         void plugin.request('fairway.status').then(next => set(state, next)).catch(showError)
-      }, showError)}</Tab>
+      }, showError, () => set(tab, 'settings'))}</Tab>
       <Tab value="task" label={t("Task")}>
         <Stack gap="md">
           {s ? <Callout tone="neutral" title={s?.config.live ? t("JEV enabled") : t("JEV disabled")}><Text>{s?.config.live ? t("JEV receives only the entered description and allowed profile cards.") : t("Uses the fallback profile. No paid requests.")}</Text></Callout> : null}
@@ -238,6 +241,7 @@ export default function Panel() {
         <Button variant="ghost" size="sm" icon="refresh" disabled={!s?.keyPresent || read(balanceLoading)} onPress={refreshBalance}>{t('Refresh balance')}</Button>
       </Stack>
     </Card>
+    {s?.config.unlimitedJev ? <Badge tone="warning">{t('Unlimited JEV decisions')}</Badge> : null}
     <Text muted size="xs">{t('JEV attempts:')} {s?.ledger.calls ?? 0}. {t('Reserved:')} ${((s?.ledger.reservedMicrousd ?? 0) / 1e6).toFixed(6)}.</Text>
     <Button variant="ghost" size="sm" icon="refresh" onPress={refresh}>{t("Refresh status")}</Button>
   </Stack>

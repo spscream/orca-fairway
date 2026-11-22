@@ -97,3 +97,17 @@ test('explicit balance refresh is read-only, cached and cleared when the own key
   assert.equal(launches, 0); assert.equal(decisions, 0); assert.deepEqual(worker.logs, []); assert.deepEqual(worker.refusals, [])
   assert.ok(!JSON.stringify(result).includes('synthetic-secret')); await worker.deactivate()
 })
+test('enabling unlimited JEV through native preferences preserves accounting and never starts work on activation', async () => {
+  let launches = 0
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { launches++; throw new Error('unexpected launch') } }
+  const host = mockHost({ storage: { config: DEFAULT_CONFIG as any, ledger: { calls: 5, reservedMicrousd: 65540 } }, results: { 'workspace.readContext': null } })
+  let worker = await mountWorker({ default: createWorker(runtime) }, { host })
+  const current: any = await worker.request('fairway.status')
+  assert.equal(current.config.unlimitedJev, false)
+  await worker.request('fairway.config', { config: JSON.stringify({ ...current.config, unlimitedJev: true }) })
+  assert.equal(host.data().settings.unlimitedJev, true)
+  await worker.deactivate(); worker = await mountWorker({ default: createWorker(runtime) }, { host })
+  const restarted: any = await worker.request('fairway.status')
+  assert.equal(restarted.config.unlimitedJev, true); assert.equal(restarted.ledger.calls, 5); assert.equal(restarted.ledger.reservedMicrousd, 65540)
+  assert.equal(launches, 0); await worker.deactivate()
+})

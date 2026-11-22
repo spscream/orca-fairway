@@ -1,3 +1,4 @@
+import { routingBudget, routingFailure } from './routing-budget.ts'
 import { digest, Engine } from './engine.ts'
 import { record, requireThat } from './config.ts'
 import { Workflows, type AutomaticReason, type AutomaticState, type Workflow } from './workflow.ts'
@@ -38,6 +39,7 @@ export class Automatic {
       const config = await this.engine.config(); requireThat(config.execution, 'execution_disabled')
       let w = await this.flows.get(id, workspace)
       requireThat(!w.cancelled && w.analysis, 'workflow_not_ready')
+      if (!Object.values(w.runs).some(run => run.state === 'submitted')) requireThat(routingBudget(config, await this.engine.ledger(), w).sufficient, 'automatic_budget_exhausted')
       requireThat(!Object.values(w.runs).some(r => ['dispatch_pending', 'dispatch_unknown', 'dispatch_failed'].includes(r.state)), 'workflow_running')
       if (!w.approvedHash) w = await this.flows.approve(id, workspace)
       requireThat(w.approvedHash === digest(w.analysis), 'workflow_not_ready')
@@ -102,13 +104,14 @@ export class Automatic {
         if (a.dispatches >= a.limit) return this.mark(w, 'paused', 'expired')
         const step = w.analysis!.steps.find(s => ['waiting', 'planned'].includes(w.runs[s.id]?.state ?? '') && s.dependsOn.every(id => w.runs[id]?.state === 'completed'))
         requireThat(step, 'workflow_not_ready')
+        if (!routingBudget(config, await this.engine.ledger(), w).sufficient) return this.mark(w, 'paused', 'budget_exhausted')
         this.controller = new AbortController()
         w = await this.flows.route(w.id, step.id, w.workspace, true, this.controller.signal)
         const plan = w.runs[step.id]!.plan!
         this.planId = plan.id
         if (this.stopped || this.controller.signal.aborted) { await this.engine.cancel(plan.id); return w }
         if (!plan.evidence.verified) return this.mark(w, 'paused', 'unverified')
-        if (plan.reason !== (config.live ? 'selected' : 'offline')) return this.mark(w, 'paused', 'routing_failed')
+        if (plan.reason !== (config.live ? 'selected' : 'offline')) return this.mark(w, 'paused', routingFailure(plan.reason))
         // Recheck authorization after routing, before the irreversible launch request.
         if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
         const latest = await this.engine.config()

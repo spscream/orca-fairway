@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.6.1 --json
+orca plugin install spscream/orca-fairway@v0.7.0 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -55,7 +55,7 @@ See [workflow instructions](docs/workflows.md) and the [roadmap](docs/roadmap.md
 
 ## Settings and profiles
 
-**Settings → Plugins → Fairway** exposes JEV requests, explicit execution, total budget in USD, and the attempt limit. Native settings apply immediately. Version 0.1.0 settings migrate once without resetting accounting.
+**Settings → Plugins → Fairway** exposes JEV requests, explicit execution, optional total budget/attempt caps, and **Unlimited JEV decisions**. Native settings apply immediately. Version 0.1.0 settings migrate once without resetting accounting.
 
 The panel's **Settings** tab contains the same preferences and a profile editor. Changes in this form apply with **Save settings**; no JSON editing is required.
 
@@ -104,7 +104,7 @@ The optional extension registers `fairway/auto`. It routes once and pins the phy
 
 Decision model: `typesafe/jev-1.14`; endpoint: `https://openrouter.ai/api/alpha/decisions`. Before each POST, public metadata must confirm bounded input pricing, free output, and context length 262144. Requests specify `provider.max_price` of $0.05/M input and $0 output, with `allow_fallbacks: false`. Unknown pricing prevents the POST.
 
-Each attempt permanently reserves **13108 microdollars ($0.013108)** before network access: the rounded-up cost of the full context at the price ceiling. Defaults: 5 attempts and $0.10. Hard configuration bounds: $10 and 100 attempts. Errors and timeouts do not refund reservations; saving or restarting does not reset them. This accounts for JEV decisions only. Coordinator and executor costs belong to their agents.
+Even in unlimited mode, each attempt permanently records a conservative reservation of **13108 microdollars ($0.013108)** before network access: the rounded-up cost of the full context at the price ceiling. Defaults: 5 attempts and $0.10. **Unlimited JEV decisions** explicitly disables both cumulative caps while retaining accounting. In this mode charges can exhaust the OpenRouter balance or key limit. Optional finite caps accept nonnegative safe integer counts and microdollar amounts; there is no fixed $10/100 ceiling. Errors and timeouts do not refund reservations; saving or restarting does not reset them. Automatic authorization checks that a finite allowance can cover the remaining unsubmitted steps before starting, and reports the exact stop cause. In-flight work can still finish without a new decision. This accounts for JEV decisions only. Coordinator and executor costs belong to their agents.
 
 Limits: 16 KiB request, 4096-byte UTF-8 task, 64 KiB response, 8-second network stage. Redirects and automatic paid retries are disabled.
 

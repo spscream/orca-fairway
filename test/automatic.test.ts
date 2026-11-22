@@ -48,7 +48,9 @@ test('automatic plan needs one explicit authorization, selects each profile and 
 })
 test('budget exhaustion, missing key and invalid choice never fall through to an automatic launch', async () => {
   for (const options of [{ maxCalls: 0 }, { key: null }, { invalidChoice: true }]) {
-    const f = fixture(options), id = await f.create(); await f.automatic.start(id, workspace)
+    const f = fixture(options), id = await f.create()
+    if (options.maxCalls === 0) { await assert.rejects(f.automatic.start(id, workspace), /automatic_budget_exhausted/); assert.equal(f.launches, 0); continue }
+    await f.automatic.start(id, workspace)
     const w = (await f.automatic.tick())!
     assert.equal(w.automatic?.state, 'paused'); assert.equal(f.launches, 0)
     await f.automatic.tick(); assert.equal(f.launches, 0)
@@ -118,4 +120,27 @@ test('a provisional report is not parsed while its executor is still working', a
   assert.equal((await f.automatic.tick())?.automatic?.state, 'running')
   f.observed = 'done'; assert.equal((await f.automatic.tick())?.automatic?.reason, 'result_invalid')
   assert.equal(f.launches, 1)
+})
+test('automatic authorization preflights the whole remaining graph without charging or approving it', async () => {
+  const f = fixture({ maxCalls: 1 }), id = await f.create()
+  await assert.rejects(f.automatic.start(id, workspace), /automatic_budget_exhausted/)
+  const w = await f.flows.get(id, workspace)
+  assert.equal(w.approvedHash, null); assert.equal(w.automatic, undefined); assert.equal(f.decisions, 0); assert.equal(f.launches, 0)
+})
+test('an in-flight manual step can be reviewed with no allowance; further selection pauses before another request', async () => {
+  const f = fixture(), id = await f.create(); await f.flows.approve(id, workspace)
+  await f.flows.route(id, 'first', workspace); await f.flows.launch(id, 'first', workspace)
+  f.memory.set('config', { ...f.config, maxCalls: 1 })
+  await f.automatic.start(id, workspace); assert.equal((await f.automatic.tick())?.automatic?.reason, 'legacy_review')
+  await f.flows.review(id, 'first', 'Synthetic reviewed result.', workspace)
+  assert.equal((await f.automatic.tick())?.automatic?.reason, 'budget_exhausted')
+  assert.equal(f.decisions, 1); assert.equal(f.launches, 1)
+})
+test('explicit unlimited mode allows continuation after prior caps without resetting usage', async () => {
+  const f = fixture({ maxCalls: 0 }), id = await f.create()
+  f.config.unlimitedJev = true; f.config.budgetMicrousd = 0; f.memory.set('config', f.config)
+  f.memory.set('ledger', { calls: 5, reservedMicrousd: 65540 })
+  await f.automatic.start(id, workspace); await f.automatic.tick()
+  assert.equal(f.launches, 1); assert.equal(f.decisions, 1)
+  assert.deepEqual(await f.engine.ledger(), { calls: 6, reservedMicrousd: 78648 })
 })

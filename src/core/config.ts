@@ -27,14 +27,16 @@ export function validateProfile(x: unknown): Profile {
   return structuredClone(x) as unknown as Profile
 }
 export function validateConfig(x: unknown): Config {
-  requireThat(record(x) && exact(x, ['version', 'profiles', 'fallback', 'live', 'execution', 'budgetMicrousd', 'maxCalls']), 'invalid_config')
+  // Existing installations retain finite limits until the operator opts in.
+  if (record(x) && !Object.hasOwn(x, 'unlimitedJev')) x = { ...x, unlimitedJev: false }
+  requireThat(record(x) && exact(x, ['version', 'profiles', 'fallback', 'live', 'execution', 'budgetMicrousd', 'maxCalls', 'unlimitedJev']), 'invalid_config')
   requireThat(x.version === 1 && Array.isArray(x.profiles) && x.profiles.length >= 1 && x.profiles.length <= 24, 'invalid_profiles')
   const profiles = x.profiles.map(validateProfile)
   requireThat(new Set(profiles.map(p => p.id)).size === profiles.length, 'duplicate_profile')
   requireThat(typeof x.fallback === 'string' && profiles.some(p => p.id === x.fallback), 'invalid_fallback')
-  requireThat(typeof x.live === 'boolean' && typeof x.execution === 'boolean', 'invalid_modes')
-  requireThat(Number.isSafeInteger(x.budgetMicrousd) && (x.budgetMicrousd as number) >= 0 && (x.budgetMicrousd as number) <= 10_000_000, 'invalid_budget')
-  requireThat(Number.isSafeInteger(x.maxCalls) && (x.maxCalls as number) >= 0 && (x.maxCalls as number) <= 100, 'invalid_call_limit')
+  requireThat(typeof x.live === 'boolean' && typeof x.execution === 'boolean' && typeof x.unlimitedJev === 'boolean', 'invalid_modes')
+  requireThat(Number.isSafeInteger(x.budgetMicrousd) && (x.budgetMicrousd as number) >= 0, 'invalid_budget')
+  requireThat(Number.isSafeInteger(x.maxCalls) && (x.maxCalls as number) >= 0, 'invalid_call_limit')
   return { ...x, profiles } as unknown as Config
 }
 export function validateTask(x: unknown): asserts x is string {
@@ -50,7 +52,7 @@ export function validateCoordinatorPrompt(x: unknown): asserts x is string {
 }
 // Examples only: launch remains blocked until metadata verifies the exact pair.
 export const DEFAULT_CONFIG: Config = {
-  version: 1, live: false, execution: false, budgetMicrousd: 100_000, maxCalls: 5,
+  version: 1, live: false, unlimitedJev: false, execution: false, budgetMicrousd: 100_000, maxCalls: 5,
   fallback: 'standard', profiles: [
     { id: 'routine', agent: 'codex', model: 'gpt-6-luna', effort: 'low', description: 'Small, local, well-specified task with direct checks.', operatorConfirmed: false },
     { id: 'standard', agent: 'codex', model: 'gpt-6.1-sol', effort: 'medium', description: 'Ordinary investigation or implementation, several steps and moderate ambiguity.', operatorConfirmed: false },

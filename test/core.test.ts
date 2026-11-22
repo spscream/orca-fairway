@@ -233,3 +233,28 @@ test('extended coordinator envelopes require a forced profile and never reach JE
   assert.equal((await f.engine.launch(p.id, task, workspace)).state, 'submitted')
   await assert.rejects(f.engine.plan('x'.repeat(65537), 'auto', workspace, randomUUID(), undefined, { coordinator: true, profileId: 'standard' }), /coordinator_prompt_too_large/)
 })
+test('unlimited JEV mode bypasses only aggregate caps and preserves cumulative accounting', async () => {
+  const f = fixture({ live: true }); f.config.unlimitedJev = true; f.config.maxCalls = 0; f.config.budgetMicrousd = 0
+  f.data.set('config', f.config); f.data.set('ledger', { calls: 105, reservedMicrousd: 105 * RESERVATION_MICROUSD })
+  const p = await f.engine.plan('Synthetic unlimited decision', 'codex', workspace)
+  assert.equal(p.reason, 'selected'); assert.equal(f.calls.length, 0)
+  assert.deepEqual(await f.engine.ledger(), { calls: 106, reservedMicrousd: 106 * RESERVATION_MICROUSD })
+  await f.engine.saveConfig({ ...f.config, unlimitedJev: false, maxCalls: 105 })
+  assert.equal((await f.engine.plan('Synthetic capped again', 'codex', workspace)).reason, 'budget_exhausted')
+  assert.equal((await f.engine.ledger()).calls, 106)
+})
+test('old configs retain limits, unlimited is explicitly boolean, and caller-selected finite caps support safe integers', () => {
+  const legacy: Partial<typeof DEFAULT_CONFIG> = structuredClone(DEFAULT_CONFIG); delete legacy.unlimitedJev
+  assert.equal(validateConfig(legacy).unlimitedJev, false)
+  assert.throws(() => validateConfig({ ...DEFAULT_CONFIG, unlimitedJev: 'yes' }), /invalid_modes/)
+  assert.equal(validateConfig({ ...DEFAULT_CONFIG, budgetMicrousd: 11000000, maxCalls: 1000 }).maxCalls, 1000)
+  assert.throws(() => validateConfig({ ...DEFAULT_CONFIG, budgetMicrousd: Number.MAX_SAFE_INTEGER + 1 }), /invalid_budget/)
+})
+test('unlimited decisions still require bounded per-request pricing and refuse corrupt accounting', async () => {
+  let posts = 0
+  const f = fixture({ live: true, transport: async (_url, args) => { if (args.body) posts++; return { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '1', completion: '0' } } } } })
+  f.config.unlimitedJev = true; f.data.set('config', f.config)
+  assert.equal((await f.engine.plan('Synthetic pricing check', 'codex', workspace)).reason, 'pricing_unbounded'); assert.equal(posts, 0)
+  f.data.set('ledger', { calls: Number.MAX_SAFE_INTEGER, reservedMicrousd: 0 })
+  assert.equal((await f.engine.plan('Synthetic overflow check', 'codex', workspace)).reason, 'invalid_ledger'); assert.equal(posts, 0)
+})

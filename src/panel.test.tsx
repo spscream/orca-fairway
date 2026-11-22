@@ -70,7 +70,7 @@ test('form rejects excessive budgets before saving and backend rejects an inject
   let saves = 0
   const host = mockHost({ requests: { 'fairway.status': () => status(), 'fairway.config': ({ config }) => { saves++; validateConfig(JSON.parse(config)); return status() } } })
   const view = await mount(panel, { host }); await view.select({ label: 'Section' }, 'settings')
-  for (const text of ['11', '-1', 'NaN', '0.0000001']) {
+  for (const text of ['10000000000', '-1', 'NaN', '0.0000001']) {
     await view.type({ label: 'Total JEV budget, USD' }, text, { replace: true }); await view.press({ text: 'Save settings' })
   }
   assert.equal(saves, 0)
@@ -122,9 +122,9 @@ test('all host locales translate settings and workflow controls without changing
     await view.select({ label: tr('Section') }, 'settings')
     assert.equal(view.valueOf({ label: tr('When to choose this profile') }), 'USER-AUTHORED-MARKER')
     assert.ok(view.find({ text: tr('Save settings') }))
-    await view.type({ label: tr('Total JEV budget, USD') }, '11', { replace: true })
+    await view.type({ label: tr('Total JEV budget, USD') }, '-1', { replace: true })
     await view.press({ text: tr('Save settings') })
-    assert.ok(view.find({ text: tr('Budget: 0–10 USD, with up to 6 decimal places.') }))
+    assert.ok(view.find({ text: tr('Budget must be nonnegative, with up to 6 decimal places.') }))
     await view.select({ label: tr('Section') }, 'workflow')
     assert.ok(view.find({ label: tr('Coordinator task') }))
     assert.equal(view.find({ text: tr('Prepare analysis') })?.props.disabled, true)
@@ -394,5 +394,29 @@ test('one automatic-plan action authorizes the graph and hides manual review for
     assert.equal(view.find({ label: 'Reviewed result: first' }), null)
     assert.ok(JSON.stringify(view.tree()).includes('Waiting for the executor to finish and report checks.'))
     assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})
+test('unlimited JEV is an explicit saved switch, disables cap fields and preserves the existing counters', async () => {
+  let config = { ...DEFAULT_CONFIG, live: true }, saves = 0, actions = 0
+  const workflow = auditedWorkflow('completed'); workflow.runs.two = { state: 'planned', plan: { ...example, reason: 'budget_exhausted' }, review: null }
+  workflow.automatic = { state: 'paused', reason: 'routing_failed', configHash: 'synthetic', approvedHash: workflow.approvedHash!, expiresAt: Date.now() + 100000, dispatches: 1, limit: 2 }
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), config: { ...config, execution: true }, keyPresent: true, workflow, ledger: { calls: 5, reservedMicrousd: 65540 } }),
+    'fairway.config': input => { config = validateConfig(JSON.parse(input.config)); saves++; return { ...status(true), config: { ...config, execution: true }, keyPresent: true, workflow, ledger: { calls: 5, reservedMicrousd: 65540 } } },
+    'fairway.workflow.action': () => { actions++; throw new Error('must not continue automatically') }
+  } })
+  const view = await mount(panel, { host })
+  try {
+  await view.select({ label: 'Section' }, 'workflow')
+  assert.equal(view.find({ type: 'Button', text: 'Continue automatically' })?.props.disabled, true)
+  assert.ok(JSON.stringify(view.tree()).includes('The JEV allowance cannot cover the remaining steps.'))
+  await view.press({ type: 'Button', text: 'Settings' })
+  await view.toggle({ label: 'Unlimited JEV decisions' })
+  assert.equal(saves, 0); assert.equal(view.find({ label: 'Total JEV budget, USD' })?.props.disabled, true)
+  await view.press({ text: 'Save settings' }); assert.equal(saves, 1); assert.equal(config.unlimitedJev, true)
+  await view.select({ label: 'Section' }, 'workflow')
+  assert.equal(view.find({ type: 'Button', text: 'Continue automatically' })?.props.disabled, false)
+  assert.ok(JSON.stringify(view.tree()).includes('Unlimited')); assert.ok(JSON.stringify(view.tree()).includes('0.065540'))
+  assert.equal(actions, 0); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })

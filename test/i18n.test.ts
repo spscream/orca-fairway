@@ -4,7 +4,7 @@ import { catalogs, locales, resolveLocale, translate, type Message } from '../sr
 test('every built-in Orca locale has a complete nonempty catalog with unchanged numeric limits', () => {
   assert.deepEqual(locales, ['en', 'de', 'es', 'fr', 'ja', 'ko', 'pt', 'ru', 'tr', 'zh', 'zh-Hant'])
   const keys = Object.keys(catalogs.en).sort() as Message[]
-  assert.equal(keys.length, 211)
+  assert.equal(keys.length, 223)
   for (const locale of locales) {
     assert.deepEqual(Object.keys(catalogs[locale]).sort(), keys, locale)
     for (const key of keys) {

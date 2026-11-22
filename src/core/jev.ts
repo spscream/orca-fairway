@@ -4,7 +4,8 @@ import type { Profile, Transport } from './types.ts'
 export const DECISION_MODEL = 'typesafe/jev-1.14'
 export const DECISIONS_URL = 'https://openrouter.ai/api/alpha/decisions'
 export const METADATA_URL = 'https://openrouter.ai/api/v1/model/typesafe/jev-1.14'
-export const RESERVATION_MICROUSD = 13_108 // ceil(262144 tokens * $0.05 / 1M * 1M microdollars)
+import { RESERVATION_MICROUSD } from './limits.ts'
+export { RESERVATION_MICROUSD } from './limits.ts'
 const finite = (x: unknown, lo: number, hi: number): x is number => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi
 export function makeRequest(task: string, profiles: Profile[]): string {
   const body = JSON.stringify({ model: DECISION_MODEL, state: { task_description: task }, questions: { profile: {

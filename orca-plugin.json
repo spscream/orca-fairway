@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "fairway",
   "name": "Fairway for Orca",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Choose an allowlisted Codex, Pi or Cursor profile with JEV, then explicitly launch it through Orca. Shadow mode by default.",
   "author": {
     "name": "spscream",
@@ -66,22 +66,27 @@
         "default": false
       },
       {
+        "key": "unlimitedJev",
+        "title": "Unlimited JEV decisions",
+        "description": "Disable cumulative JEV attempt and reserve caps. Accounting continues; charges can exhaust the OpenRouter balance or key limit.",
+        "type": "boolean",
+        "default": false
+      },
+      {
         "key": "budgetUsd",
         "title": "Total JEV budget, USD",
-        "description": "Cumulative decision reservation limit, 0–10 USD, up to 6 decimal places. Saving does not reset accounting.",
+        "description": "Optional cumulative limit. Ignored when unlimited JEV decisions are enabled. Saving does not reset accounting.",
         "type": "number",
         "default": 0.1,
-        "minimum": 0,
-        "maximum": 10
+        "minimum": 0
       },
       {
         "key": "maxCalls",
         "title": "JEV attempt limit",
-        "description": "Cumulative limit, 0–100. Configure profiles and the key in the Fairway panel.",
+        "description": "Optional cumulative limit. Ignored when unlimited JEV decisions are enabled. Saving does not reset accounting.",
         "type": "integer",
         "default": 5,
-        "minimum": 0,
-        "maximum": 100
+        "minimum": 0
       }
     ]
   },

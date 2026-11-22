@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Add explicit unlimited JEV decisions: aggregate attempt/reserve caps are optional; accounting and bounded per-request pricing remain enforced.
+- Preserve finite limits for existing installations; native and localized settings expose the mode and its billing implications.
+- Distinguish budget, key, timeout, confidence, invalid-choice, pricing and HTTP routing failures.
+- Show needed/available decisions, cumulative usage and a Settings shortcut; preflight a finite allowance before authorizing the remaining graph.
+- Keep in-flight monitoring available without new allowance and prevent futile continuation/reselection when caps cannot cover remaining work.
+
 ## 0.6.1
 
 - Raise coordinator descriptions from 2000 to 8192 UTF-8 bytes and label counters explicitly as bytes.

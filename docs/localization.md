@@ -6,7 +6,7 @@ Fairway reads `env.locale` from Orca at translation/render time. It does not rea
 
 The installed Orca 1.4.265 package contains built-in locale resources for `en`, `de`, `es`, `fr`, `ja`, `ko`, `pt`, `ru`, `tr`, `zh`, and `zh-Hant`. Discovery used shipped locale resource filenames and the version-matched components API, without reading user configuration or other work repositories. These are the bundled languages, not an exhaustive list of possible community language packs.
 
-All 11 catalogs contain the same 211 messages. English source phrases are typed message keys; every translated catalog must satisfy `Record<Message, string>`. Missing or extra keys fail type checking. Tests also check nonempty translations and preserve numeric policy limits across languages. The initial translations have not received independent native-speaker review.
+All 11 catalogs contain the same 223 messages. English source phrases are typed message keys; every translated catalog must satisfy `Record<Message, string>`. Missing or extra keys fail type checking. Tests also check nonempty translations and preserve numeric policy limits across languages. The initial translations have not received independent native-speaker review.
 
 `resolveLocale` accepts case-insensitive language tags and regional variants, including underscore separators. Explicit Chinese script wins over region: `zh-Hans-TW` uses Simplified Chinese, `zh-Hant-CN` uses Traditional Chinese. Without a script, Taiwan, Hong Kong, and Macao select Traditional Chinese. Unsupported language packs use English.
 

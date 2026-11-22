@@ -1,3 +1,4 @@
+import { routingBudget } from './core/routing-budget.ts'
 import { COORDINATOR_TASK_BYTES } from './core/limits.ts'
 import { automaticPanel } from './automatic-panel.tsx'
 import { t } from './ui-i18n.ts'
@@ -17,7 +18,7 @@ export function reconcileWorkflow(w: Workflow | null): void {
   if (w.cancelled || (state && ['submitted', 'dispatch_failed', 'cancelled'].includes(state))) set(uncertain, null)
 }
 export function clearWorkflowDrafts(): void { set(task, ''); set(review, {}); set(coordinatorProfile, '') }
-export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, error: (e: unknown) => void) {
+export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, error: (e: unknown) => void, openSettings?: () => void) {
   const w = s?.workflow, waiting = read(pending)
   const locked = !!w && read(uncertain)?.workflowId === w.id
   const currentStep = w?.analysis?.steps.find(step => ['submitted', 'dispatch_pending', 'dispatch_unknown'].includes(w.runs[step.id]?.state ?? ''))
@@ -85,7 +86,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
           {!w.analysis && w.coordinator.state === 'shadow' ? <Text muted>{t('Launch the coordinator before reading its analysis.')}</Text> : null}
         </Stack>
       </Collapsible>
-      {automaticPanel(s, action, waiting || locked)}
+      {automaticPanel(s, action, waiting || locked, openSettings)}
       {w.analysis ? <Stack gap="sm">
         <Text weight="semibold">{w.analysis.summary}</Text>
         <Collapsible title={t("Analysis details")}>
@@ -111,7 +112,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
               {run?.state === 'submitted' && (w.automatic?.state !== 'running' || !run.result) ? <Stack gap="sm"><Input label={`${t('Reviewed result:')} ${step.id}`} value={reviewText} maxLength={160} placeholder={t("Briefly describe the result and checks, without code or secrets.")} onChange={v => set(review, { ...read(review), [w.id + ':' + step.id]: v })} /><Text tone={bytes(reviewText) > 160 ? "warning" : "neutral"}>{t('UTF-8 bytes')}: {bytes(reviewText)} / 160</Text><Button disabled={locked || waiting || !reviewText.trim() || bytes(reviewText) > 160} onPress={() => action('review', step.id)}>{t("Accept result:")} {step.id}</Button></Stack> : null}
               <Text>{step.instructions}</Text><Text>{t("Context:")} {step.context || t("not required")}</Text><Text>{t("Acceptance:")} {step.acceptance}</Text>
               <Collapsible title={t("Details")}><Text>{t("JEV routing brief:")} {step.routingBrief}</Text><Text>{t("Allowed agents:")} {step.allowedAgents.join(', ')}.</Text>{run?.plan ? <Code block>{JSON.stringify({ state: run.plan.state, reason: run.plan.reason, source: run.plan.evidence.source }, null, 2)}</Code> : null}</Collapsible>
-              {run?.plan ? <Text>{t("Selected:")} {run.plan.profile.agent} · {run.plan.profile.model} · {run.plan.profile.effort ?? 'native'} · {displayState(run.plan.reason)}.</Text> : null}
+              {run?.plan && !(run.plan.reason === 'budget_exhausted' && s && routingBudget(s.config, s.ledger, w).sufficient) ? <Text>{t("Selected:")} {run.plan.profile.agent} · {run.plan.profile.model} · {run.plan.profile.effort ?? 'native'} · {displayState(run.plan.reason)}.</Text> : null}
               {run?.state === 'dispatch_unknown' ? <Text tone="warning">{t("The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.")}</Text> : null}
               {run?.review ? <Text>{t("Accepted result:")} {run.review}</Text> : null}
             </Stack>

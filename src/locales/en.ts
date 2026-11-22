@@ -19,7 +19,7 @@ export const en = {
   "Assumption:": "Assumption:",
   "Audit log": "Audit log",
   "Briefly describe the result and checks, without code or secrets.": "Briefly describe the result and checks, without code or secrets.",
-  "Budget: 0–10 USD, with up to 6 decimal places.": "Budget: 0–10 USD, with up to 6 decimal places.",
+  "Budget must be nonnegative, with up to 6 decimal places.": "Budget must be nonnegative, with up to 6 decimal places.",
   "Cancel selection": "Cancel selection",
   "Changes apply only to Fairway. Saving cancels pending decisions.": "Changes apply only to Fairway. Saving cancels pending decisions.",
   "Check the profile settings.": "Check the profile settings.",
@@ -107,7 +107,7 @@ export const en = {
   "Task → model and effort → native Orca dispatch.": "Task → model and effort → native Orca dispatch.",
   "The analysis file is invalid or exceeds the limits.": "The analysis file is invalid or exceeds the limits.",
   "The analysis must list every URL from the original task.": "The analysis must list every URL from the original task.",
-  "The attempt limit must be an integer from 0 to 100.": "The attempt limit must be an integer from 0 to 100.",
+  "The attempt limit must be a nonnegative integer.": "The attempt limit must be a nonnegative integer.",
   "The coordinator dispatch outcome is unknown. Inspect Orca; retries are blocked.": "The coordinator dispatch outcome is unknown. Inspect Orca; retries are blocked.",
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.",
   "The coordinator has not written the analysis file yet.": "The coordinator has not written the analysis file yet.",
@@ -209,6 +209,18 @@ export const en = {
   "Pause automatic execution before using manual controls.": "Pause automatic execution before using manual controls.",
   "Automatic limits stop new launches; running agents must be stopped in Orca.": "Automatic limits stop new launches; running agents must be stopped in Orca.",
   "UTF-8 bytes": "UTF-8 bytes",
-  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "The prepared coordinator prompt exceeds 65536 UTF-8 bytes."
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.",
+  "The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.": "The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.",
+  "JEV could not select a profile confidently. Review the profile descriptions before retrying.": "JEV could not select a profile confidently. Review the profile descriptions before retrying.",
+  "JEV returned an invalid choice. Automatic execution is paused.": "JEV returned an invalid choice. Automatic execution is paused.",
+  "JEV pricing could not be bounded. No decision request was sent.": "JEV pricing could not be bounded. No decision request was sent.",
+  "OpenRouter rejected the request or was unavailable. Check the key and service status.": "OpenRouter rejected the request or was unavailable. Check the key and service status.",
+  "Decisions needed for remaining steps:": "Decisions needed for remaining steps:",
+  "Available decisions:": "Available decisions:",
+  "One JEV decision reserves:": "One JEV decision reserves:",
+  "Unlimited JEV decisions": "Unlimited JEV decisions",
+  "No JEV attempt or reserve cap. Usage accounting continues; charges can exhaust the OpenRouter balance or key limit.": "No JEV attempt or reserve cap. Usage accounting continues; charges can exhaust the OpenRouter balance or key limit.",
+  "Unlimited": "Unlimited",
+  "Settings changed. Continue to select profiles under the new settings.": "Settings changed. Continue to select profiles under the new settings."
 } as const
 export type Message = keyof typeof en

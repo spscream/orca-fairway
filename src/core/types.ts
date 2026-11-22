@@ -13,6 +13,7 @@ export interface Config {
   profiles: Profile[]
   fallback: string
   live: boolean
+  unlimitedJev: boolean
   execution: boolean
   budgetMicrousd: number
   maxCalls: number

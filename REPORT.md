@@ -1,4 +1,34 @@
-# Fairway for Orca — verification report 0.6.1
+# Fairway for Orca — verification report 0.7.0
+
+Resolved a repeated automatic-continuation stop. Read-only UI metadata identified `budget_exhausted`, five cumulative JEV attempts and a conservative reservation of $0.065540. The old card merged budget, key, transport and choice failures into one generic instruction. Finite-mode authorization now checks whether the remaining unsubmitted graph fits the available attempt/reserve allowance before making another decision request; in-flight work can still finish without new allowance. The panel shows used/configured counts, reserved/configured amounts, decisions needed/available, distinct routing failure messages and a Settings shortcut. Futile continuation is disabled while a finite allowance cannot cover remaining work.
+
+The operator then explicitly requested removal of JEV limits. Added `unlimitedJev`, default false for existing and new installations, with a native and localized **Unlimited JEV decisions** switch. Opting in disables aggregate attempt/reserve caps while retaining monotonic accounting. No counters or reservations are reset. Optional finite caps now accept nonnegative safe integers/microdollars rather than an artificial fixed $10/100 ceiling, allowing a meaningful return to finite mode after extended usage. Invalid numbers and accounting overflow still fail closed.
+
+Unlimited mode retains per-request pricing validation, the price ceiling, bounded request/response sizes, no redirects, no automatic paid retries, profile allowlists and exact-pair verification. It does not change the decision model, enable JEV or execution by itself, create credits, bypass OpenRouter/key limits, or resume a paused workflow. The UI states that charges can exhaust the account balance or key limit and displays the active unlimited mode. Automatic graph/time/launch constraints remain unchanged. Settings changes continue to pause the runner.
+
+## Verification
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+node scripts/orca.mjs plugin test .orca/release-0.7 --json
+node scripts/orca.mjs plugin check .orca/release-0.7 --json
+node scripts/orca.mjs plugin validate .orca/release-0.7 --json
+npm run audit:public  # in the clean committed release copy
+git diff --cached --check
+```
+
+Final results: **99/99** standalone tests, **132/132** through Orca, and **16** panel scenarios without issues or warnings. Both type checks and source validation pass; the committed release copy is independently checked before publication. Coverage includes finite preflight, money/call boundary arithmetic, legacy reason classification, old-config migration to finite mode, explicit opt-in, accounting beyond old caps, preservation across restart and return to capped mode, per-request price protection, safe-integer overflow, disabled continuation, the Settings shortcut, localized financial disclosure and no accidental execution when saving the mode. All 11 locale catalogs contain 223 typed messages.
+
+The operator’s pending architecture-audit additions to working REPORT.md and unreleased evidence remain intact. Only this release header plus the previously committed public report are staged for publication; no pending audit contents or private paths are included. Disposable test/release copies contain only reviewed integration source. A native installed-settings check is performed after update; enabling the requested flag does not authorize or dispatch the current plan.
+
+Paid/model requests in implementation and tests: **0**, cost **$0**. No extra AI agents or real executors were launched or messaged. No secret files, key values or other working repositories were accessed. Existing usage, settings, plans and operator artifacts are preserved. No new dependencies or capabilities were added.
+
+Usage: in Settings enable **Unlimited JEV decisions**, save once, then return to Workflow and explicitly continue. The operator authorized this setting for the current installation; its five used attempts remain recorded. In finite mode, the panel explains insufficient allowance instead of repeatedly attempting a paused route. Actual automatic executor progression remains untested by this patch because real worker launches were excluded.
+
+## Previous release: 0.6.1
+
 
 Raised the coordinator-description limit from 2000 to **8192 UTF-8 bytes**. Counters now explicitly say bytes in every supported UI locale, so Russian text is not mistaken for an equivalent character count. The observed 3386-byte case is covered by the panel regression test and becomes eligible for preparation without truncation.
 

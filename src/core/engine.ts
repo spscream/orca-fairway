@@ -39,7 +39,8 @@ export class Engine {
   private async reserve(config: Config): Promise<void> {
     await this.serial(async () => {
       const l = await this.ledger()
-      requireThat(l.calls < config.maxCalls && l.reservedMicrousd + RESERVATION_MICROUSD <= config.budgetMicrousd, 'budget_exhausted')
+      requireThat(config.unlimitedJev || (l.calls < config.maxCalls && l.reservedMicrousd + RESERVATION_MICROUSD <= config.budgetMicrousd), 'budget_exhausted')
+      requireThat(Number.isSafeInteger(l.calls + 1) && Number.isSafeInteger(l.reservedMicrousd + RESERVATION_MICROUSD), 'invalid_ledger')
       await this.store.set('ledger', { calls: l.calls + 1, reservedMicrousd: l.reservedMicrousd + RESERVATION_MICROUSD })
     })
   }
