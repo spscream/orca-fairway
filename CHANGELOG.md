@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- Replaced the upright buoy with a top-down fairway between red and green diamond markers.
+- Refreshed the plugin icon and panel screenshot; behavior and permissions unchanged.
+
 ## 0.4.1
 
 - Original red/ivory nautical buoy icon for the plugin listing and panel header.

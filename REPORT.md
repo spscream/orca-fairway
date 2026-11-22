@@ -1,4 +1,12 @@
-# Fairway for Orca — verification report 0.4.1
+# Fairway for Orca — verification report 0.4.2
+
+Replaced the upright buoy artwork with a top-down channel symbol: an ivory trapezoid between separate red and green diamond markers. The icon path and panel code are unchanged. Export: PNG, 256×256, 56349 bytes. No configuration, permissions, localization, or routing changes.
+
+Checks: `npm run validate`, live `plugin dev watch` component check, `npm run audit:public`, and `git diff --check`. The panel screenshot was inspected at 502×959 with `settled: true`, `errors: []`, and `pendingRequests: 0`; the development plugin was unloaded afterward. Code tests were not repeated for this artwork-only change; 55/55 passed in 0.4.1. CI runs the standalone suite on the published commit.
+
+One image-generation request was used for this replacement. No JEV requests, real agent launches, or new access to secrets. Existing integration and host API limitations remain unchanged.
+
+## Previous release: 0.4.1
 
 Added an original nautical buoy icon, generated from a visual brief without source code or private data. The plugin manifest references `assets/fairway-icon.png`; the same bundled asset appears beside the Fairway heading. Technical export: PNG, 256×256, 58672 bytes, within Orca’s minimum 128×128 and maximum 256 KB constraints. The original generated image is retained outside the public repository; only the exported icon is shipped.
 
