@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.4
+
+- Changed the native panel/tab symbol from branch to flag to match the maritime identity.
+- Custom buoy artwork, settings, permissions, and execution behavior unchanged.
+
 ## 0.4.3
 
 - Adopted the selected open-frame buoy direction: broad float, X brace, flat lantern cap, and waves.

@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "fairway",
   "name": "Fairway for Orca",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Choose an allowlisted Codex, Pi or Cursor profile with JEV, then explicitly launch it through Orca. Shadow mode by default.",
   "author": {
     "name": "spscream",
@@ -38,7 +38,7 @@
       {
         "id": "fairway",
         "title": "Fairway",
-        "icon": "branch",
+        "icon": "flag",
         "entry": "src/panel.tsx",
         "ui": "components"
       }

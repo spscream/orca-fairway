@@ -1,4 +1,10 @@
-# Fairway for Orca — verification report 0.4.3
+# Fairway for Orca — verification report 0.4.4
+
+Changed `contributes.panels[0].icon` from `branch` to the supported built-in `flag`. The custom buoy PNG remains the plugin-listing and panel-header image. No code, permissions, configuration schema, or execution behavior changed.
+
+Checks: `npm run validate`, `npm run audit:public`, and `git diff --check`. No code tests or agent runs are needed for the manifest-only visual change. CI runs the standalone suite. The release is applied with `orca plugin update spscream.fairway --environment local --json`; the installed panel metadata is checked for `icon: flag` afterward. OpenRouter requests: 0.
+
+## Previous release: 0.4.3
 
 Adopted the operator-selected open-frame buoy direction. Original artwork uses a broad coral float, a short ivory X-braced frame, a flat coral lantern cap, and turquoise waves. The reference was used as a design direction, not copied as an asset. Export: PNG, 256×256, 64052 bytes; manifest and panel asset paths unchanged.
 
