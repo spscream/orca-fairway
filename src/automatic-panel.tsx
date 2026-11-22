@@ -34,6 +34,7 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
     <Stack gap="sm">
       <Badge tone={a?.state === 'paused' ? 'warning' : 'neutral'}>{w.analysis.steps.filter(step => w.runs[step.id]?.state === 'completed').length} / {w.analysis.steps.length}</Badge>
       <Text weight="semibold">{complete ? t('Plan completed') : t('Profiles are selected and steps run one at a time.')}</Text>
+      {Object.values(w.runs).some(run => run.state === 'submitted' && run.plan?.reason === 'low_confidence_fallback') ? <Text tone="warning">{t('Low JEV confidence. Using the configured fallback profile.')}</Text> : null}
       {!running && budgetBlocked ? <Text tone="warning">{t(messages.budget_exhausted)}</Text> : null}
       {!running && keyBlocked && cause !== 'missing_key' ? <Text tone="warning">{t('Save an OpenRouter key in Settings.')}</Text> : null}
       {cause && !(budgetBlocked && cause === 'budget_exhausted') ? <Text tone="warning">{t(messages[cause])}</Text> : null}

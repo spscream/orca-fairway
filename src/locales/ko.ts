@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "Low JEV confidence. Using the configured fallback profile.": "JEV의 신뢰도가 낮습니다. 설정된 대체 프로필을 사용합니다.",
   "A local Orca workspace is required.": "로컬 Orca 작업 공간이 필요합니다.",
   "A short task description without secrets or source code": "비밀 정보나 소스 코드가 없는 짧은 작업 설명",
   "Accept result:": "결과 수락:",

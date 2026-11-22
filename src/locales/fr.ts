@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "Low JEV confidence. Using the configured fallback profile.": "La confiance de JEV est faible. Le profil de secours configuré est utilisé.",
   "A local Orca workspace is required.": "Un espace de travail Orca local est requis.",
   "A short task description without secrets or source code": "Brève description sans secrets ni code source",
   "Accept result:": "Accepter le résultat :",

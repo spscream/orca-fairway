@@ -6,7 +6,7 @@ export function displayState(value: string, automatic = false): string {
   const labels: Record<string, Message> = {
     budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     missing_key: 'Save an OpenRouter key in Settings.', timeout: 'Request timed out',
-    low_confidence_fallback: 'JEV could not select a profile confidently. Review the profile descriptions before retrying.',
+    low_confidence_fallback: 'Fallback profile',
     invalid_choice: 'JEV returned an invalid choice. Automatic execution is paused.',
     pricing_unbounded: 'JEV pricing could not be bounded. No decision request was sent.',
     http_error: 'OpenRouter rejected the request or was unavailable. Check the key and service status.',

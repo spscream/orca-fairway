@@ -420,3 +420,19 @@ test('unlimited JEV is an explicit saved switch, disables cap fields and preserv
   assert.equal(actions, 0); assert.deepEqual(view.errors, [])
   } finally { await view.unmount() }
 })
+
+test('automatic low-confidence fallback is disclosed without dispatching on panel load', async () => {
+  const workflow = auditedWorkflow('completed')
+  workflow.runs.two = { state: 'submitted', plan: { ...example, profile: DEFAULT_CONFIG.profiles[1]!, state: 'submitted', reason: 'low_confidence_fallback', confidence: .4 }, review: null, result: { path: '/synthetic-private/result.json', token: 'synthetic' } }
+  workflow.automatic = { state: 'running', reason: null, configHash: 'synthetic', approvedHash: workflow.approvedHash!, expiresAt: Date.now() + 100000, dispatches: 2, limit: 2 }
+  let actions = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(true), workflow }),
+    'fairway.workflow.action': () => { actions++; throw new Error('must not launch from render') }
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    assert.ok(JSON.stringify(view.tree()).includes('Low JEV confidence. Using the configured fallback profile.'))
+    assert.equal(actions, 0); assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})

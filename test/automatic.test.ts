@@ -2,12 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Engine } from '../src/core/engine.ts'
 import { Automatic } from '../src/core/automatic.ts'
-import { DEFAULT_CONFIG } from '../src/core/config.ts'
+import { DEFAULT_CONFIG, RouterError } from '../src/core/config.ts'
 import { Workflows, type Analysis, type Artifacts, type Workflow } from '../src/core/workflow.ts'
 import { validateStepResult } from '../src/core/results.ts'
 import type { Store, Runtime, Transport } from '../src/core/types.ts'
 const workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' as const }
-function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean } = {}) {
+function fixture(options: { key?: string | null; maxCalls?: number; invalidChoice?: boolean; execution?: boolean; confidence?: number; transportError?: string } = {}) {
   const config = structuredClone(DEFAULT_CONFIG); config.live = true; config.execution = options.execution ?? true; config.maxCalls = options.maxCalls ?? 5
   const memory = new Map<string, unknown>([['config', config]]), reports = new Map<string, string>()
   const store: Store = { get: async k => structuredClone(memory.get(k) ?? null), set: async (k, v) => { memory.set(k, structuredClone(v)) } }
@@ -16,8 +16,9 @@ function fixture(options: { key?: string | null; maxCalls?: number; invalidChoic
     launch: async () => { launches++; return { code: 0, stdout: JSON.stringify({ ok: true, result: { outcome: { kind: 'structured', handle: `orca_session_id:synthetic-${launches}` }, prompt: { outcome: 'journaled' } } }) } } }
   const transport: Transport = async (_url, args) => {
     if (!args.body) return { data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } } }
-    decisions++; const ids = Object.keys(JSON.parse(args.body).questions.profile.criteria), choice = options.invalidChoice ? '; synthetic injection' : ids[decisions % ids.length]!
-    return { answers: { profile: { type: 'choice', choice, confidence: 1, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: 0.000001 } }
+    decisions++; if (options.transportError) throw new RouterError(options.transportError)
+    const ids = Object.keys(JSON.parse(args.body).questions.profile.criteria), choice = options.invalidChoice ? '; synthetic injection' : ids[decisions % ids.length]!
+    return { answers: { profile: { type: 'choice', choice, confidence: options.confidence ?? 1, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: 0.000001 } }
   }
   let analysis: Analysis = { version: 1, summary: 'Synthetic analysis', assumptions: [], questions: [], sources: [], steps: ['first', 'second'].map((id, i) => ({ id, title: 'Synthetic step', instructions: 'Perform a synthetic check.', acceptance: 'Synthetic check passes.', context: '', routingBrief: 'Synthetic bounded work.', allowedAgents: ['codex'], dependsOn: i ? ['first'] : [] })) }
   const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async () => JSON.stringify(analysis), createResult: async (_id, step, token) => `/synthetic-private/result-${step}-${token}.json`, readResult: async (_id, _step, token) => reports.get(token) ?? null }
@@ -54,6 +55,34 @@ test('budget exhaustion, missing key and invalid choice never fall through to an
     const w = (await f.automatic.tick())!
     assert.equal(w.automatic?.state, 'paused'); assert.equal(f.launches, 0)
     await f.automatic.tick(); assert.equal(f.launches, 0)
+  }
+})
+test('low confidence uses the verified configured fallback once without paid retries or implicit authorization', async () => {
+  for (const confidence of [0, .59]) {
+    const f = fixture({ confidence }), id = await f.create()
+    await f.automatic.tick(); assert.equal(f.launches, 0); assert.equal(f.decisions, 0)
+    await f.automatic.start(id, workspace); await f.automatic.tick(); await f.automatic.tick()
+    const w = await f.flows.get(id, workspace), plan = w.runs.first!.plan!
+    assert.equal(w.automatic?.state, 'running'); assert.equal(w.runs.first!.state, 'submitted')
+    assert.equal(plan.profile.id, f.config.fallback); assert.equal(plan.reason, 'low_confidence_fallback'); assert.equal(plan.confidence, confidence)
+    assert.equal(f.launches, 1); assert.equal(f.decisions, 1); assert.equal((await f.engine.ledger()).calls, 1)
+  }
+})
+test('low confidence never launches an unverified fallback or substitutes a different eligible profile', async () => {
+  for (const excluded of [false, true]) {
+    const f = fixture({ confidence: .4 }), id = await f.create()
+    if (excluded) Object.assign(f.config.profiles.find(p => p.id === f.config.fallback)!, { agent: 'cursor', effort: null })
+    else f.runtime.verify = async () => ({ verified: false, source: 'synthetic_unavailable' })
+    await f.automatic.start(id, workspace); const w = (await f.automatic.tick())!
+    assert.equal(w.automatic?.state, 'paused'); assert.equal(w.automatic?.reason, excluded ? 'low_confidence' : 'unverified')
+    assert.equal(f.launches, 0); assert.equal(f.decisions, 1)
+  }
+})
+test('transport failures still pause automatic execution rather than launching the fallback', async () => {
+  for (const transportError of ['timeout', 'http_error', 'invalid_response', 'invalid_probabilities']) {
+    const f = fixture({ transportError }), id = await f.create(); await f.automatic.start(id, workspace)
+    const w = (await f.automatic.tick())!
+    assert.equal(w.automatic?.state, 'paused'); assert.equal(f.launches, 0); assert.equal(f.decisions, 1)
   }
 })
 test('failed, blocked, mismatched and malformed reports stop the graph without another executor', async () => {

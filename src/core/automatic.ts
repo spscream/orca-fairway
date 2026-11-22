@@ -111,7 +111,11 @@ export class Automatic {
         this.planId = plan.id
         if (this.stopped || this.controller.signal.aborted) { await this.engine.cancel(plan.id); return w }
         if (!plan.evidence.verified) return this.mark(w, 'paused', 'unverified')
-        if (plan.reason !== (config.live ? 'selected' : 'offline')) return this.mark(w, 'paused', routingFailure(plan.reason))
+        // Only low confidence may use the operator's exact configured fallback.
+        // An excluded fallback must never silently become the first eligible profile.
+        const fallbackAllowed = config.live && plan.reason === 'low_confidence_fallback'
+          && plan.profile.id === config.fallback && step.allowedAgents.includes(plan.profile.agent)
+        if (plan.reason !== (config.live ? 'selected' : 'offline') && !fallbackAllowed) return this.mark(w, 'paused', routingFailure(plan.reason))
         // Recheck authorization after routing, before the irreversible launch request.
         if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
         const latest = await this.engine.config()

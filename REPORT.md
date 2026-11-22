@@ -1,3 +1,30 @@
+# Fairway for Orca — отчёт 0.7.1
+
+По явному запросу пользователя автоматическое выполнение больше не останавливается только из-за уверенности JEV ниже 0.6. При корректном ответе используется именно настроенный резервный профиль, если его агент разрешён для шага и модель/усилие подтверждены штатной проверкой. Исключённый резервный профиль не заменяется первым доступным. Повторных платных запросов для повышения уверенности нет. Исходная причина `low_confidence_fallback`, значение уверенности и учёт расходов сохраняются; панель показывает использование резерва на всех 11 языках Orca.
+
+Ошибки ключа, соединения, тайм-ауты, некорректный или внедрённый выбор, неподтверждённые пары и неизвестный исход запуска по-прежнему приостанавливают план. Проверки разрешения, проекта, конфигурации и срока действия перед запуском сохранены. Открытие панели, обновление и перезапуск не продолжают план автоматически. Настройки, профили и накопленный учёт не сбрасываются. Новых зависимостей, разрешений и настроек нет.
+
+## Проверки
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+node scripts/orca.mjs plugin test .orca/release-0.7.1 --json
+node scripts/orca.mjs plugin check .orca/release-0.7.1 --json
+node scripts/orca.mjs plugin validate .orca/release-0.7.1 --json
+npm run audit:public  # из чистой копии .orca/release-0.7.1
+git diff --cached --check
+```
+
+Результаты: 102/102 локальных теста, 136/136 через Orca; 16 сценариев панели без ошибок и предупреждений. Новые проверки покрывают уверенность 0 и 0.59, использование точного резерва, отсутствие повторного подбора/запуска, отсутствие действий до разрешения, неподтверждённый и исключённый резерв, ошибки транспорта и сообщение панели без запуска при открытии. Все задачи и ответы синтетические, транспорт и исполнители подменены. Живой сквозной запуск исполнителей не проводился.
+
+Платных запросов: **0**, стоимость: **$0**. Дополнительные ИИ-агенты не запускались. Секретные файлы, значения ключей и другие рабочие репозитории не читались. Чужие незавершённые отчёты в этой рабочей копии сохранены и не включены в публикацию; чистая копия содержит только ранее отслеживаемые файлы интеграции и публичную версию этого отчёта.
+
+Использование: после обновления до 0.7.1 нажмите «Продолжить автоматически» в ранее остановленном плане. Далее низкая уверенность сама по себе не требует ручного вмешательства при разрешённом и подтверждённом резерве. Реальный план в ходе разработки и установки не запускался.
+
+## Предыдущий выпуск: 0.7.0
+
 # Fairway for Orca — verification report 0.7.0
 
 Resolved a repeated automatic-continuation stop. Read-only UI metadata identified `budget_exhausted`, five cumulative JEV attempts and a conservative reservation of $0.065540. The old card merged budget, key, transport and choice failures into one generic instruction. Finite-mode authorization now checks whether the remaining unsubmitted graph fits the available attempt/reserve allowance before making another decision request; in-flight work can still finish without new allowance. The panel shows used/configured counts, reserved/configured amounts, decisions needed/available, distinct routing failure messages and a Settings shortcut. Futile continuation is disabled while a finite allowance cannot cover remaining work.

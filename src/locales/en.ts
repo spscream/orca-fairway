@@ -1,4 +1,5 @@
 export const en = {
+  "Low JEV confidence. Using the configured fallback profile.": "Low JEV confidence. Using the configured fallback profile.",
   "A local Orca workspace is required.": "A local Orca workspace is required.",
   "A short task description without secrets or source code": "A short task description without secrets or source code",
   "Accept result:": "Accept result:",

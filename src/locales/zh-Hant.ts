@@ -1,5 +1,6 @@
 import type { Message } from './en.ts'
 export default {
+  "Low JEV confidence. Using the configured fallback profile.": "JEV 信賴度較低。正在使用已設定的備用設定檔。",
   "A local Orca workspace is required.": "需要本機 Orca 工作區。",
   "A short task description without secrets or source code": "不含機密或原始碼的簡短任務描述",
   "Accept result:": "接受結果：",
