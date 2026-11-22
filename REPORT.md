@@ -21,6 +21,8 @@ Results: **74/74** standalone tests, **92/92** through Orca and **12** panel sce
 
 The current private artifact was read through a temporary handler inside the actual Orca worker using the production `Workflows.read`, strict parser and private-artifact reader. Result: valid, 14 sources, 3 steps. This probe used a synthetic in-memory store, so it neither changed nor approved the operator’s workflow. No artifact text was copied into tests or published. The temporary development plugin was unloaded; restaging removes the private diagnostic handler and workflow identifier before release.
 
+Post-install verification: version 0.5.4 was installed successfully. Orca Computer Use activated only **Read coordinator analysis** in the stable plugin, with background delivery. The loaded analysis then exposed **Approve analysis and workflow** in the actual UI; the panel reported no rendering errors or pending requests. This read persisted the loaded analysis in the existing workflow as intended. No approval, routing, agent launch, key change or other UI action followed. The screenshot and accessibility evidence remain private. Both release CI runs passed.
+
 Paid/model requests: **0**, cost **$0**. No OpenRouter requests, new coordinators, executors or AI workers were launched. No secret files or other working repositories were read. Native plugin workers and synthetic tests only. No dependencies or permissions were added.
 
 Usage: update to **0.5.4**, then click **Read coordinator analysis** on the current plan. Its existing file now passes the actual worker path; no rewrite or coordinator restart is needed. Future rejected files identify the offending field. The operator still reviews and explicitly approves analysis before any routing or execution.
