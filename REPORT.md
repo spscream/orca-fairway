@@ -1,4 +1,14 @@
-# Fairway for Orca — verification report 0.4.0
+# Fairway for Orca — verification report 0.4.1
+
+Added an original nautical buoy icon, generated from a visual brief without source code or private data. The plugin manifest references `assets/fairway-icon.png`; the same bundled asset appears beside the Fairway heading. Technical export: PNG, 256×256, 58672 bytes, within Orca’s minimum 128×128 and maximum 256 KB constraints. The original generated image is retained outside the public repository; only the exported icon is shipped.
+
+The current version-matched panel manifest allows only built-in sidebar symbols, so its `branch` activity icon remains. The custom asset is used in the plugin listing and panel header. No permissions, localization keys, settings, routing logic, or runtime dependencies changed.
+
+Verification: `npm run typecheck`, `npm run test:orca` (**55/55**), `npm run check:orca` (**9 scenarios**, no issues or warnings), `npm run validate`, `npm run audit:public`, and `git diff --check`. The live panel screenshot was inspected at 502×959 in the current dark theme: `settled: true`, `errors: []`, `pendingRequests: 0`. The temporary development plugin was unloaded after inspection. `assets/panel-dark.png` was refreshed.
+
+One image-generation request was used for the icon. OpenRouter/JEV requests: **0**; JEV cost: **$0**. No real coordinators or execution agents were launched. Existing live-integration blockers and host localization limitations remain unchanged.
+
+## Previous release: 0.4.0
 
 The panel now follows the host application's UI language through `env.locale`. All 11 built-in locales observed in Orca 1.4.265 are included: `en`, `de`, `es`, `fr`, `ja`, `ko`, `pt`, `ru`, `tr`, `zh`, and `zh-Hant`. Each contains all 143 panel messages. Locale discovery used shipped resource filenames and the version-matched API, without reading user settings, credentials, or other work repositories.
 

@@ -1,6 +1,6 @@
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
-import { atom, Badge, Button, Callout, Card, Code, Heading, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
+import { atom, Badge, Button, Callout, Card, Code, Heading, Image, Input, KeyValue, plugin, read, Row, Select, set, Spinner, Stack, Switch, Tab, Tabs, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
 import { budgetFromText } from './core/preferences.ts'
@@ -124,7 +124,7 @@ function settingsForm() {
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy), errorMessage = read(error)
   return <Stack gap="md">
-    <Row justify="between"><Heading>Fairway</Heading><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
+    <Row justify="between" align="center"><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{s?.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
     <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
     {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
     <Tabs label={t("Section")} value={read(tab)} onChange={v => { set(tab, v); if (v === 'history') void plugin.request('fairway.history').then(r => set(journal, r.json)).catch(showError) }}>

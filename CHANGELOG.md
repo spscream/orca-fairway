@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Original red/ivory nautical buoy icon for the plugin listing and panel header.
+- Bundled 256×256 PNG; no extra access or runtime dependencies.
+- Sidebar activity icon remains built-in due to the current Orca panel API.
+
 ## 0.4.0
 
 - Panel language automatically follows Orca `env.locale`, without an override setting.
