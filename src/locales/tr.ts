@@ -113,7 +113,7 @@ export default {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "Koordinatör model seçmez ve ajan başlatmaması istenir. Çalışması seçilen ajan tarafından ücretlendirilir; JEV bütçesinden ayrıdır.",
   "The coordinator has not written the analysis file yet.": "Koordinatör analiz dosyasını henüz yazmadı.",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "Koordinatör belgeleri okur ve görevi netleştirir. Analizi onaylayınca Fairway her alt görev için profil seçer. Hazırlama ve seçim ajan başlatmaz.",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "Koordinatör görevi en fazla 2000 UTF-8 bayt olmalıdır.",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "Koordinatör görevi en fazla 8192 UTF-8 bayt olmalıdır.",
   "The decision was cancelled, expired, or already used.": "Karar iptal edildi, süresi doldu veya zaten kullanıldı.",
   "The description must contain 1–4096 UTF-8 bytes.": "Açıklama 1–4096 UTF-8 bayt içermelidir.",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "Başlatmanın sonucu bilinmiyor. Yeni başlatmalar ve bağımlı adımlar engellendi. Orca uygulamasını kontrol edin.",
@@ -208,5 +208,7 @@ export default {
   "Plan completed": "Plan tamamlandı",
   "Another workflow is running automatically. Pause it before starting this plan.": "Başka bir plan otomatik yürütülüyor. Bu planı başlatmadan önce onu duraklatın.",
   "Pause automatic execution before using manual controls.": "Elle denetimleri kullanmadan önce otomatik yürütmeyi duraklatın.",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Otomatik sınırlar yeni başlatmaları durdurur; çalışan ajanlar Orca içinde durdurulmalıdır."
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Otomatik sınırlar yeni başlatmaları durdurur; çalışan ajanlar Orca içinde durdurulmalıdır.",
+  "UTF-8 bytes": "UTF-8 bayt",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "Hazırlanan koordinatör isteği 65536 UTF-8 baytı aşıyor."
 } satisfies Record<Message, string>

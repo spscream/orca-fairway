@@ -1,4 +1,30 @@
-# Fairway for Orca — verification report 0.6.0
+# Fairway for Orca — verification report 0.6.1
+
+Raised the coordinator-description limit from 2000 to **8192 UTF-8 bytes**. Counters now explicitly say bytes in every supported UI locale, so Russian text is not mistaken for an equivalent character count. The observed 3386-byte case is covered by the panel regression test and becomes eligible for preparation without truncation.
+
+The change covers the entire request path: raw input, generated coordinator instructions, engine planning, persisted plan, profile refresh and explicit dispatch. The complete local coordinator prompt has a separate **65536-byte** cap. Its plan records an explicit coordinator purpose; extended planning requires a forced allowlisted profile and forbids routed-description options. No JEV call or budget reservation is made for coordinator-profile preparation. Ordinary routed tasks retain the 4096-byte cap, routing briefs retain their existing bound, and paid request/accounting controls are unchanged. Safe argv dispatch and task/config/workspace hashes are preserved.
+
+## Checks and commands
+
+```sh
+npm run typecheck
+npm run typecheck:core
+npm test
+node scripts/orca.mjs plugin test .orca/release-0.6.1 --json
+node scripts/orca.mjs plugin check .orca/release-0.6.1 --json
+node scripts/orca.mjs plugin validate .orca/release-0.6.1 --json
+npm run audit:public  # in the clean committed release copy
+git diff --check
+```
+
+Final results: **90/90** standalone tests, **121/121** through Orca, and **14** panel scenarios without issues or warnings. Both type checks, manifest validation and the clean-release source audit pass. New regressions use synthetic Cyrillic text at 8192 bytes, refuse overflow, check 3386-byte input readiness and explicit byte labels, preserve full text through refresh/dispatch, exercise worst-case JSON escaping, reject unbounded coordinator envelopes and preserve the ordinary routing limit. They assert zero JEV requests and no accidental execution during preparation. All 11 locale catalogs contain 211 typed messages.
+
+The committed release copy excludes the operator’s existing, untracked audit reports without changing those files or Git exclusions. Checks use mocks only; no real coordinator or executor was launched, no workflow was created or approved on the operator’s behalf, no secret files or other working repositories were read. Paid/model requests: **0**, cost: **$0**. No permissions or dependencies were added. The existing stored drafts, settings, budget and workflows are preserved.
+
+Usage: after updating to **0.6.1**, the coordinator field accepts 8192 UTF-8 bytes. A task of 3386 bytes fits. Preparing still does not launch an agent; launching remains explicit. Full live coordinator execution is intentionally unverified; synthetic tests cover the exact stored text and dispatch boundary.
+
+## Previous release: 0.6.0
+
 
 Added opt-in sequential plan execution. After reviewing analysis, one **Run plan automatically** action approves that exact graph and authorizes its remaining steps in the same local workspace. Fairway selects each ready step’s allowlisted model/effort through JEV (or the explicitly configured offline fallback), verifies metadata, and dispatches one executor at a time through Orca. A step advances only after native completion metadata and a correctly bound executor report with passing checks and no questions. This is automatic acceptance of self-reported evidence, not independent quality verification.
 

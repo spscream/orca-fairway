@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.6.0 --json
+orca plugin install spscream/orca-fairway@v0.6.1 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -42,6 +42,8 @@ Only the entered description and configured profile cards go to JEV. Project fil
 ## Analyze first, then select agents
 
 The **Workflow** tab provides: task and references → coordinator → reviewed analysis → **Run plan automatically** → sequential profile selection, execution, and result handling.
+
+Coordinator descriptions accept up to **8192 UTF-8 bytes**, with an explicit byte counter. The complete local coordinator prompt has a separate 65536-byte bound; direct JEV descriptions retain their 4096-byte limit.
 
 The coordinator uses an explicitly selected profile, reads documentation with its own tools, asks questions in its Orca chat, and writes structured analysis to a private Fairway directory. JEV selects subtask profiles after approval. Only the displayed `routingBrief` goes to JEV; local context and execution instructions are kept separate.
 

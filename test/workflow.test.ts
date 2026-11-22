@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile, symlink, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Engine } from '../src/core/engine.ts'
 import { DEFAULT_CONFIG } from '../src/core/config.ts'
-import { Workflows, validateAnalysis, type Analysis, type Artifacts } from '../src/core/workflow.ts'
+import { Workflows, validateAnalysis, coordinatorPrompt, type Analysis, type Artifacts } from '../src/core/workflow.ts'
 import { PrivateArtifacts } from '../src/core/artifacts.ts'
 import type { Runtime, Store, Transport, Workspace } from '../src/core/types.ts'
 const workspace: Workspace = { id: 'synthetic', path: '/synthetic-project', host: 'local' }
@@ -204,4 +204,18 @@ test('coordinator instructions disclose all collection and byte limits', () => {
     assert.ok(w.coordinatorTask.includes('at most 7 unique step ids'))
     assert.ok(w.coordinatorTask.includes('UTF-8 bytes, not characters'))
   })
+})
+test('long coordinator tasks stay local and survive preparation, refresh and launch beyond the routed-task limit', async () => {
+  const f = fixture({ execution: true, live: true }), task = 'я'.repeat(4096)
+  const w = await f.flows.create(task, 'standard', workspace)
+  assert.ok(Buffer.byteLength(w.coordinatorTask) > 8192)
+  assert.equal(w.coordinator.purpose, 'coordinator'); assert.equal(f.traffic.length, 0); assert.equal(f.keyReads, 0); assert.equal(f.calls.length, 0)
+  const refreshed = await f.flows.refreshCoordinator(w.id, workspace)
+  assert.equal(refreshed.task, task); assert.equal(refreshed.coordinator.purpose, 'coordinator')
+  const sent = await f.flows.launchCoordinator(w.id, workspace)
+  assert.equal(sent.coordinator.state, 'submitted'); assert.equal(f.calls.length, 1)
+  assert.equal(f.calls[0]![1], refreshed.coordinatorTask)
+  assert.ok(Buffer.byteLength(coordinatorPrompt('\u0001'.repeat(8192), '/synthetic-private/analysis.json')) <= 65536)
+  assert.equal(f.traffic.length, 0); assert.equal(f.keyReads, 0)
+  await assert.rejects(f.flows.create(task + 'a', 'standard', workspace), /workflow_task_too_large/)
 })

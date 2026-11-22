@@ -284,8 +284,12 @@ test('F09: multibyte task and coordinator inputs block requests before byte limi
   const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => { requests++; return example } } }) })
   await view.type({ label: 'Task description' }, 'я'.repeat(2049)); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
   await view.type({ label: 'Task description' }, '😀'.repeat(1024), { replace: true }); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, false)
-  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'я'.repeat(1001))
-  assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true); assert.equal(requests, 0); await view.unmount()
+  await view.select({ label: 'Section' }, 'workflow'); await view.type({ label: 'Coordinator task' }, 'я'.repeat(4097))
+  assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true)
+  await view.type({ label: 'Coordinator task' }, 'я'.repeat(1693), { replace: true })
+  assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, false)
+  assert.ok(JSON.stringify(view.tree()).includes('3386'))
+  assert.equal(requests, 0); await view.unmount()
 })
 test('F10: a restored audit tab loads events and distinguishes failure from emptiness', async () => {
   let reads = 0

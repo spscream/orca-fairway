@@ -32,7 +32,8 @@ function showError(e: unknown): void {
     duplicate_profile: 'Profile IDs must be unique.', invalid_fallback: 'Select an existing fallback profile.',
     invalid_pi_pair: 'For Pi, enter provider/model and a supported effort.', invalid_codex_pair: 'For Codex, enter a model without a provider prefix and a supported effort.',
     invalid_cursor_pair: 'Cursor requires an exact model ID; auto is not allowed.',
-    workflow_active: 'Close the current workflow or complete its subtasks.', workflow_task_too_large: 'The coordinator task must fit within 2000 UTF-8 bytes.',
+    coordinator_prompt_too_large: 'The prepared coordinator prompt exceeds 65536 UTF-8 bytes.',
+    workflow_active: 'Close the current workflow or complete its subtasks.', workflow_task_too_large: 'The coordinator task must fit within 8192 UTF-8 bytes.',
     workflow_workspace_changed: 'This workflow belongs to another workspace.', analysis_not_found: 'The coordinator has not written the analysis file yet.',
     invalid_analysis: 'The analysis file is invalid or exceeds the limits.', invalid_dependencies: 'The workflow contains duplicate steps, a cycle, or an unknown dependency.',
     analysis_needs_clarification: 'Resolve open questions and unavailable sources with the coordinator first.', analysis_already_approved: 'An approved workflow cannot be replaced. Create a new workflow.',
@@ -180,7 +181,7 @@ export default function Panel() {
           <Text muted size="xs">{t("Drafts are saved locally for this workspace. The key field is never saved.")}</Text>
           <Select label={t("Agent")} disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
           <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
-          <Text tone={bytes(read(task)) > 4096 ? "warning" : "neutral"}>UTF-8: {bytes(read(task))} / 4096</Text>
+          <Text tone={bytes(read(task)) > 4096 ? "warning" : "neutral"}>{t('UTF-8 bytes')}: {bytes(read(task))} / 4096</Text>
           <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !!read(uncertain) || !read(task).trim() || bytes(read(task)) > 4096 || !s?.workspace} onPress={route}>{t("Select profile")}</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>{t("Cancel selection")}</Button></Row>
           {waiting ? <Spinner label={t("Working")} /> : null}
           {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? t("effort encoded in the Cursor ID")}`}>

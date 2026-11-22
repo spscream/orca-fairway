@@ -224,3 +224,12 @@ test('direct Orca agent-launch response confirms one dispatch and never permits 
   await assert.rejects(f.engine.launch(plan.id, 'Synthetic launch contract', workspace), /plan_not_launchable/)
   assert.equal(f.calls.length, 1)
 })
+test('extended coordinator envelopes require a forced profile and never reach JEV; ordinary routing stays capped', async () => {
+  const f = fixture({ live: true, execution: true }), task = 'x'.repeat(5000)
+  await assert.rejects(f.engine.plan(task, 'codex', workspace), /invalid_task/)
+  await assert.rejects(f.engine.plan(task, 'codex', workspace, randomUUID(), undefined, { coordinator: true }), /invalid_coordinator_plan/)
+  const p = await f.engine.plan(task, 'auto', workspace, randomUUID(), undefined, { coordinator: true, profileId: 'standard' })
+  assert.equal(p.purpose, 'coordinator'); assert.equal(p.reason, 'coordinator_profile'); assert.equal(f.traffic.length, 0)
+  assert.equal((await f.engine.launch(p.id, task, workspace)).state, 'submitted')
+  await assert.rejects(f.engine.plan('x'.repeat(65537), 'auto', workspace, randomUUID(), undefined, { coordinator: true, profileId: 'standard' }), /coordinator_prompt_too_large/)
+})

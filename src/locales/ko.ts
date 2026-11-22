@@ -113,7 +113,7 @@ export default {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "조정자는 모델을 선택하지 않으며 에이전트를 실행하지 않도록 지시받습니다. 실행 비용은 선택한 에이전트에서 청구되며 JEV 예산과 별개입니다.",
   "The coordinator has not written the analysis file yet.": "조정자가 아직 분석 파일을 작성하지 않았습니다.",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "조정자가 문서를 읽고 작업을 명확히 합니다. 분석 승인 후 Fairway가 각 하위 작업의 프로필을 선택합니다. 준비와 선택만으로 에이전트가 실행되지 않습니다.",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "조정자 작업은 UTF-8 기준 2000바이트 이하여야 합니다.",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "조정자 작업은 UTF-8 기준 8192바이트 이하여야 합니다.",
   "The decision was cancelled, expired, or already used.": "결정이 취소되었거나 만료되었거나 이미 사용되었습니다.",
   "The description must contain 1–4096 UTF-8 bytes.": "설명은 UTF-8 기준 1–4096바이트여야 합니다.",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "실행 결과를 알 수 없습니다. 추가 실행과 의존 단계가 차단되었습니다. Orca를 확인하세요.",
@@ -208,5 +208,7 @@ export default {
   "Plan completed": "계획 완료",
   "Another workflow is running automatically. Pause it before starting this plan.": "다른 계획이 자동 실행 중입니다. 이 계획을 시작하기 전에 일시 중지하세요.",
   "Pause automatic execution before using manual controls.": "수동 제어를 사용하기 전에 자동 실행을 일시 중지하세요.",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "자동 제한은 새 실행을 중지합니다. 실행 중인 에이전트는 Orca에서 중지해야 합니다."
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "자동 제한은 새 실행을 중지합니다. 실행 중인 에이전트는 Orca에서 중지해야 합니다.",
+  "UTF-8 bytes": "UTF-8 바이트",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "준비된 코디네이터 요청이 65536 UTF-8 바이트를 초과합니다."
 } satisfies Record<Message, string>

@@ -4,7 +4,7 @@ Use this mode when an ambiguous task or documentation reference needs analysis b
 
 ![Fairway workflow tab](../assets/workflow-dark.png)
 
-1. Open **Workflow** in a local Orca workspace. Enter a task and references, up to 2000 UTF-8 bytes.
+1. Open **Workflow** in a local Orca workspace. Enter a task and references, up to 8192 UTF-8 bytes.
 2. Select a **Coordinator profile** and click **Prepare analysis**. The allowlisted pair is verified; neither JEV nor an agent starts.
 3. Enable explicit execution if needed. After a configuration or catalog change, use **Refresh coordinator profile** to recheck the existing task. A shadow coordinator can be refreshed without launching or paying for a JEV decision. Codex verification prefers the available binary’s offline bundled catalog, so a cache last written by another client no longer blocks a supported pair.
 4. Click **Launch coordinator through Orca**. Answer clarification questions in its chat. The coordinator is instructed to read sources, analyze the task, and write `analysis.json` at the displayed private path.

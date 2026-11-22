@@ -113,7 +113,7 @@ export default {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "O coordenador não seleciona modelos e recebe instruções para não iniciar agentes. Sua execução é cobrada pelo agente escolhido, fora do orçamento do JEV.",
   "The coordinator has not written the analysis file yet.": "O coordenador ainda não gravou o arquivo de análise.",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "O coordenador lê a documentação e esclarece a tarefa. Após sua aprovação, o Fairway seleciona um perfil por subtarefa. Preparar e selecionar nunca inicia agentes.",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "A tarefa do coordenador deve ter no máximo 2000 bytes UTF-8.",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "A tarefa do coordenador deve ter no máximo 8192 bytes UTF-8.",
   "The decision was cancelled, expired, or already used.": "A decisão foi cancelada, expirou ou já foi usada.",
   "The description must contain 1–4096 UTF-8 bytes.": "A descrição deve conter de 1 a 4096 bytes UTF-8.",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "O resultado do início é desconhecido. Novos inícios e etapas dependentes estão bloqueados. Verifique o Orca.",
@@ -208,5 +208,7 @@ export default {
   "Plan completed": "Plano concluído",
   "Another workflow is running automatically. Pause it before starting this plan.": "Outro plano está sendo executado automaticamente. Pause-o antes de iniciar este plano.",
   "Pause automatic execution before using manual controls.": "Pause a execução automática antes de usar os controles manuais.",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Os limites automáticos impedem novos inícios; agentes em execução devem ser interrompidos no Orca."
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Os limites automáticos impedem novos inícios; agentes em execução devem ser interrompidos no Orca.",
+  "UTF-8 bytes": "Bytes UTF-8",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "A solicitação preparada para o coordenador excede 65536 bytes UTF-8."
 } satisfies Record<Message, string>

@@ -113,7 +113,7 @@ export default {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "协调器不选择模型，且被要求不启动代理。其执行费用由所选代理收取，与 JEV 预算分开。",
   "The coordinator has not written the analysis file yet.": "协调器尚未写入分析文件。",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "协调器读取文档并澄清任务。批准分析后，Fairway 为每个子任务选择配置。准备和选择不会启动代理。",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "协调器任务不得超过 2000 个 UTF-8 字节。",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "协调器任务不得超过 8192 个 UTF-8 字节。",
   "The decision was cancelled, expired, or already used.": "该决策已取消、已过期或已使用。",
   "The description must contain 1–4096 UTF-8 bytes.": "描述必须包含 1–4096 个 UTF-8 字节。",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "启动结果未知。后续启动和依赖步骤已被阻止。请检查 Orca。",
@@ -208,5 +208,7 @@ export default {
   "Plan completed": "计划已完成",
   "Another workflow is running automatically. Pause it before starting this plan.": "另一个计划正在自动执行。请先暂停该计划。",
   "Pause automatic execution before using manual controls.": "使用手动控制前请暂停自动执行。",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "自动限制会停止新的启动；正在运行的代理需在 Orca 中停止。"
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "自动限制会停止新的启动；正在运行的代理需在 Orca 中停止。",
+  "UTF-8 bytes": "UTF-8 字节",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "准备的协调员请求超过 65536 个 UTF-8 字节。"
 } satisfies Record<Message, string>

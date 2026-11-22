@@ -113,7 +113,7 @@ export default {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "コーディネーターはモデルを選ばず、エージェントを起動しないよう指示されます。実行料金は選択したエージェント側で発生し、JEV 予算とは別です。",
   "The coordinator has not written the analysis file yet.": "コーディネーターはまだ分析ファイルを書き込んでいません。",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "コーディネーターが文書を読み、タスクを明確にします。分析の承認後、Fairway が各サブタスクのプロファイルを選びます。準備や選択だけでエージェントは起動しません。",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "コーディネーターへのタスクは UTF-8 で 2000 バイト以内にしてください。",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "コーディネーターへのタスクは UTF-8 で 8192 バイト以内にしてください。",
   "The decision was cancelled, expired, or already used.": "判断は取り消されたか、有効期限切れか、使用済みです。",
   "The description must contain 1–4096 UTF-8 bytes.": "説明は UTF-8 で 1～4096 バイトにしてください。",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "起動結果が不明です。次の起動と依存ステップは禁止されています。Orca を確認してください。",
@@ -208,5 +208,7 @@ export default {
   "Plan completed": "プラン完了",
   "Another workflow is running automatically. Pause it before starting this plan.": "別のプランが自動実行中です。このプランの開始前に一時停止してください。",
   "Pause automatic execution before using manual controls.": "手動操作の前に自動実行を一時停止してください。",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "自動制限は新しい起動を止めます。実行中のエージェントは Orca で停止してください。"
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "自動制限は新しい起動を止めます。実行中のエージェントは Orca で停止してください。",
+  "UTF-8 bytes": "UTF-8 バイト数",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "準備したコーディネーターへのリクエストが 65536 UTF-8 バイトを超えています。"
 } satisfies Record<Message, string>

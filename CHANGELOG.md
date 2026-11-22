@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+- Raise coordinator descriptions from 2000 to 8192 UTF-8 bytes and label counters explicitly as bytes.
+- Keep a separate 65536-byte local coordinator envelope, including instructions and JSON escaping, throughout prepare, refresh and dispatch.
+- Extended envelopes require an explicit coordinator purpose and forced allowlisted profile; JEV routing retains its original limits and never receives the expanded coordinator task.
+
 ## 0.6.0
 
 - One explicit automatic-plan authorization replaces per-step selection, launch and result-acceptance clicks.

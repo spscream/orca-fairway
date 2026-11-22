@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { digest, Engine } from './engine.ts'
-import { record, requireThat, RouterError, validateTask } from './config.ts'
+import { record, requireThat, RouterError, validateTask, validateCoordinatorTask, validateCoordinatorPrompt } from './config.ts'
 import { resultInstructions, validateStepResult, type StepResult } from './results.ts'
 import { parseJson } from './json.ts'
 import type { Agent, Plan, Store, Workspace } from './types.ts'
@@ -87,7 +87,7 @@ export function coordinatorPrompt(task: string, artifact: string): string {
 Schema: {"version":1,"summary":"<=800 bytes","assumptions":[],"questions":[],"sources":[{"reference":"exact task URL or local document reference, <=300 bytes","status":"read|unavailable","summary":"<=400 bytes"}],"steps":[{"id":"implement","title":"<=160 bytes","instructions":"<=1200 bytes","acceptance":"<=400 bytes","context":"<=600 bytes","routingBrief":"<=800 bytes, no source code","allowedAgents":["codex","pi","cursor"],"dependsOn":[]}]}
 Output file (write only this plan artifact): ${JSON.stringify(artifact)}
 Task data: ${JSON.stringify(task)}`
-  validateTask(prompt); return prompt
+  validateCoordinatorPrompt(prompt); return prompt
 }
 export function stepPrompt(step: Step, workflow: Workflow): string {
   const dependencies = step.dependsOn.map(id => ({ id, acceptedResult: workflow.runs[id]!.review }))
@@ -127,12 +127,12 @@ export class Workflows {
     return validateStepResult(parseJson(raw), id, stepId, run)
   }
   async create(task: string, profileId: string, workspace: Workspace): Promise<Workflow> {
-    validateTask(task); requireThat(Buffer.byteLength(task) <= 2000, 'workflow_task_too_large')
+    validateCoordinatorTask(task)
     return this.serial(async () => {
       const current = await this.current(workspace)
       requireThat(!current || current.cancelled || (current.analysis && current.analysis.steps.every(s => current.runs[s.id]?.state === 'completed')), 'workflow_active')
       const id = randomUUID(), artifact = await this.artifacts.create(id), coordinatorTask = coordinatorPrompt(task, artifact)
-      const coordinator = await this.engine.plan(coordinatorTask, 'auto', workspace, randomUUID(), undefined, { profileId })
+      const coordinator = await this.engine.plan(coordinatorTask, 'auto', workspace, randomUUID(), undefined, { profileId, coordinator: true })
       const w: Workflow = { id, workspace, task, artifact, coordinatorTask, coordinator, analysis: null, approvedHash: null, cancelled: false, runs: {} }
       await this.engine.workflowEvent(id, 'analysis_prepared'); await this.save(w)
       await this.store.set('workflowCurrent:' + digest(workspace), id); return w
@@ -159,7 +159,7 @@ export class Workflows {
       const w = await this.get(id, workspace)
       requireThat(!w.cancelled && !w.analysis && w.coordinator.state === 'shadow', 'workflow_not_ready')
       await this.engine.cancel(w.coordinator.id)
-      w.coordinator = await this.engine.plan(w.coordinatorTask, 'auto', workspace, randomUUID(), undefined, { profileId: w.coordinator.profile.id })
+      w.coordinator = await this.engine.plan(w.coordinatorTask, 'auto', workspace, randomUUID(), undefined, { profileId: w.coordinator.profile.id, coordinator: true })
       await this.engine.workflowEvent(id, 'coordinator_refreshed'); return this.save(w)
     })
   }

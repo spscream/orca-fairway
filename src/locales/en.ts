@@ -112,7 +112,7 @@ export const en = {
   "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.": "The coordinator does not select models and is instructed not to launch agents. Its execution is billed by the selected agent, separately from the JEV budget.",
   "The coordinator has not written the analysis file yet.": "The coordinator has not written the analysis file yet.",
   "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.": "The coordinator reads documentation and clarifies the task. After you approve the analysis, Fairway selects a profile for each subtask. Preparation and selection never start agents.",
-  "The coordinator task must fit within 2000 UTF-8 bytes.": "The coordinator task must fit within 2000 UTF-8 bytes.",
+  "The coordinator task must fit within 8192 UTF-8 bytes.": "The coordinator task must fit within 8192 UTF-8 bytes.",
   "The decision was cancelled, expired, or already used.": "The decision was cancelled, expired, or already used.",
   "The description must contain 1–4096 UTF-8 bytes.": "The description must contain 1–4096 UTF-8 bytes.",
   "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.": "The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.",
@@ -207,6 +207,8 @@ export const en = {
   "Plan completed": "Plan completed",
   "Another workflow is running automatically. Pause it before starting this plan.": "Another workflow is running automatically. Pause it before starting this plan.",
   "Pause automatic execution before using manual controls.": "Pause automatic execution before using manual controls.",
-  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Automatic limits stop new launches; running agents must be stopped in Orca."
+  "Automatic limits stop new launches; running agents must be stopped in Orca.": "Automatic limits stop new launches; running agents must be stopped in Orca.",
+  "UTF-8 bytes": "UTF-8 bytes",
+  "The prepared coordinator prompt exceeds 65536 UTF-8 bytes.": "The prepared coordinator prompt exceeds 65536 UTF-8 bytes."
 } as const
 export type Message = keyof typeof en

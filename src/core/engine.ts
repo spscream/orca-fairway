@@ -1,7 +1,7 @@
 import { launchReceipt } from './launch-receipt.ts'
 import { parseJson } from './json.ts'
 import { createHash, randomUUID } from 'node:crypto'
-import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig, validateProfile, validateTask } from './config.ts'
+import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig, validateProfile, validateTask, validateCoordinatorPrompt } from './config.ts'
 import { httpTransport, makeRequest, METADATA_URL, DECISIONS_URL, RESERVATION_MICROUSD, validatePrice, validateAnswer } from './jev.ts'
 import type { Agent, Config, Ledger, Plan, Runtime, Store, Transport, Workspace } from './types.ts'
 export const digest = (x: unknown): string => createHash('sha256').update(JSON.stringify(x)).digest('hex')
@@ -63,8 +63,9 @@ export class Engine {
     })
   }
   async plan(task: string, agent: Agent | 'auto', workspace: Workspace, requestId: string = randomUUID(), externalSignal?: AbortSignal,
-    options: { routingTask?: string; allowedAgents?: Agent[]; profileId?: string } = {}): Promise<Plan> {
-    validateTask(task)
+    options: { routingTask?: string; allowedAgents?: Agent[]; profileId?: string; coordinator?: boolean } = {}): Promise<Plan> {
+    requireThat(!options.coordinator || (options.profileId !== undefined && options.routingTask === undefined && options.allowedAgents === undefined), 'invalid_coordinator_plan')
+    if (options.coordinator) validateCoordinatorPrompt(task); else validateTask(task)
     if (options.routingTask !== undefined) validateTask(options.routingTask)
     requireThat(validPlanId(requestId), 'invalid_request_id')
     requireThat(workspace.host === 'local' && typeof workspace.path === 'string' && workspace.path.length > 0 && typeof workspace.id === 'string', 'invalid_workspace')
@@ -109,6 +110,7 @@ export class Engine {
       const changed = digest(await this.config()) !== digest(c)
       const cancelled = controller.signal.aborted || externalSignal?.aborted || changed
       const plan: Plan = {
+        ...(options.coordinator ? { purpose: 'coordinator' as const } : {}),
         id: requestId, profile, reason: cancelled ? 'cancelled' : reason, confidence,
         createdAt: Date.now(), expiresAt: Date.now() + 10 * 60_000, configHash: digest(c), taskHash: digest(task), workspaceHash: digest(workspace),
         evidence, costUsd, reservedMicrousd, state: cancelled ? 'cancelled' : 'shadow', observedModel: null, observedEffort: null
@@ -125,10 +127,11 @@ export class Engine {
     await this.audit({ flowId, state, ...(stepId ? { stepId } : {}) })
   }
   async launch(id: string, task: string, workspace: Workspace): Promise<Plan> {
-    validateTask(task); requireThat(validPlanId(id), 'invalid_plan')
+    requireThat(validPlanId(id), 'invalid_plan')
     const p = await this.store.get('plan:' + id)
     requireThat(record(p) && p.id === id, 'invalid_plan')
     const plan = p as unknown as Plan, config = await this.config()
+    if (plan.purpose === 'coordinator' && plan.reason === 'coordinator_profile') validateCoordinatorPrompt(task); else validateTask(task)
     requireThat(config.execution, 'execution_disabled')
     validateProfile(plan.profile)
     requireThat(config.profiles.some(profile => digest(profile) === digest(plan.profile)), 'profile_changed')

@@ -1,3 +1,4 @@
+import { COORDINATOR_TASK_BYTES } from './core/limits.ts'
 import { automaticPanel } from './automatic-panel.tsx'
 import { t } from './ui-i18n.ts'
 import { atom, Badge, Button, Callout, Code, Collapsible, Spinner, Input, plugin, read, Row, Select, set, Stack, Text, Textarea } from 'orca'
@@ -59,10 +60,10 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
     {!waiting && (locked || w?.coordinator.state === 'dispatch_unknown' || Object.values(w?.runs ?? {}).some(run => run.state === 'dispatch_unknown')) ? <Callout tone="warning" title={t("The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.")} /> : null}
     {!w || w.cancelled || finished ? <Stack gap="sm">
       <Text muted size="xs">{t("Drafts are saved locally for this workspace. The key field is never saved.")}</Text>
-      <Textarea label={t("Coordinator task")} value={read(task)} maxLength={2000} rows={4} placeholder={t("Task description and documentation links, without secrets.")} onChange={v => set(task, v)} />
-      <Text tone={bytes(read(task)) > 2000 ? "warning" : "neutral"}>UTF-8: {bytes(read(task))} / 2000</Text>
+      <Textarea label={t("Coordinator task")} value={read(task)} maxLength={COORDINATOR_TASK_BYTES} rows={4} placeholder={t("Task description and documentation links, without secrets.")} onChange={v => set(task, v)} />
+      <Text tone={bytes(read(task)) > COORDINATOR_TASK_BYTES ? "warning" : "neutral"}>{t('UTF-8 bytes')}: {bytes(read(task))} / {COORDINATOR_TASK_BYTES}</Text>
       <Select label={t("Coordinator profile")} value={read(coordinatorProfile) || s?.config.fallback || ''} options={(s?.config.profiles ?? []).map(p => ({ value: p.id, label: `${p.id} · ${p.agent} · ${p.model} · ${p.effort ?? 'native'}` }))} onChange={v => set(coordinatorProfile, v)} />
-      <Button disabled={waiting || !s?.workspace || !read(task).trim() || bytes(read(task)) > 2000} onPress={() => { set(operation, 'Prepare analysis'); return perform(() => plugin.request('fairway.workflow.create', { task: read(task), profileId: read(coordinatorProfile) || s!.config.fallback })) }}>{t("Prepare analysis")}</Button>
+      <Button disabled={waiting || !s?.workspace || !read(task).trim() || bytes(read(task)) > COORDINATOR_TASK_BYTES} onPress={() => { set(operation, 'Prepare analysis'); return perform(() => plugin.request('fairway.workflow.create', { task: read(task), profileId: read(coordinatorProfile) || s!.config.fallback })) }}>{t("Prepare analysis")}</Button>
     </Stack> : null}
     {w && !w.cancelled ? <Stack gap="md">
       {read(validation) ? <Callout tone="warning" title={t('Analysis validation details')}><Text>{t('Ask the coordinator to correct the listed fields and rewrite the analysis file.')}</Text><Code block>{JSON.stringify(read(validation), null, 2)}</Code></Callout> : null}
@@ -107,7 +108,7 @@ export function workflowPanel(s: Status | null, changed: (w: Workflow) => void, 
                 <Button disabled={locked || waiting || !w.approvedHash || !ready || running || (!!run && !['waiting', 'planned'].includes(run.state))} onPress={() => action('route', step.id)}>{t("Select agent:")} {step.id}</Button>
                 <Button disabled={locked || waiting || !s?.config.execution || !ready || running || run?.state !== 'planned' || !run.plan?.evidence.verified || run.plan.state !== 'shadow'} onPress={() => action('launch', step.id)}>{t("Launch subtask:")} {step.id}</Button>
               </Row> : null}
-              {run?.state === 'submitted' && (w.automatic?.state !== 'running' || !run.result) ? <Stack gap="sm"><Input label={`${t('Reviewed result:')} ${step.id}`} value={reviewText} maxLength={160} placeholder={t("Briefly describe the result and checks, without code or secrets.")} onChange={v => set(review, { ...read(review), [w.id + ':' + step.id]: v })} /><Text tone={bytes(reviewText) > 160 ? "warning" : "neutral"}>UTF-8: {bytes(reviewText)} / 160</Text><Button disabled={locked || waiting || !reviewText.trim() || bytes(reviewText) > 160} onPress={() => action('review', step.id)}>{t("Accept result:")} {step.id}</Button></Stack> : null}
+              {run?.state === 'submitted' && (w.automatic?.state !== 'running' || !run.result) ? <Stack gap="sm"><Input label={`${t('Reviewed result:')} ${step.id}`} value={reviewText} maxLength={160} placeholder={t("Briefly describe the result and checks, without code or secrets.")} onChange={v => set(review, { ...read(review), [w.id + ':' + step.id]: v })} /><Text tone={bytes(reviewText) > 160 ? "warning" : "neutral"}>{t('UTF-8 bytes')}: {bytes(reviewText)} / 160</Text><Button disabled={locked || waiting || !reviewText.trim() || bytes(reviewText) > 160} onPress={() => action('review', step.id)}>{t("Accept result:")} {step.id}</Button></Stack> : null}
               <Text>{step.instructions}</Text><Text>{t("Context:")} {step.context || t("not required")}</Text><Text>{t("Acceptance:")} {step.acceptance}</Text>
               <Collapsible title={t("Details")}><Text>{t("JEV routing brief:")} {step.routingBrief}</Text><Text>{t("Allowed agents:")} {step.allowedAgents.join(', ')}.</Text>{run?.plan ? <Code block>{JSON.stringify({ state: run.plan.state, reason: run.plan.reason, source: run.plan.evidence.source }, null, 2)}</Code> : null}</Collapsible>
               {run?.plan ? <Text>{t("Selected:")} {run.plan.profile.agent} · {run.plan.profile.model} · {run.plan.profile.effort ?? 'native'} · {displayState(run.plan.reason)}.</Text> : null}
