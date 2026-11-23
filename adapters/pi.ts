@@ -1,5 +1,6 @@
 /** Optional Pi 1.5+ virtual model. Load explicitly; never reads Pi/OpenRouter credentials. */
-import { readFile, stat } from 'node:fs/promises'
+import { open } from 'node:fs/promises'
+import { constants } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 interface Model { provider: string; id: string }
@@ -9,9 +10,17 @@ interface Context { modelRegistry: { find(provider: string, id: string): Model |
 interface PiApi { registerCommand(name: string, options: { description: string; handler(args: string): Promise<void> }): void; registerVirtualModel(definition: { provider: string; id: string; name: string; thinkingLevels: string[]; input: string[]; route(request: RouteRequest, ctx: Context): Promise<Physical & { state?: { model: string; effort: string } }> }): void }
 const connectionPath = () => process.env.FAIRWAY_CONNECTION_FILE || join(homedir(), '.config', 'fairway-for-orca', 'connection.json')
 export async function askFairway(task: string, signal: AbortSignal, path = connectionPath()): Promise<{ model: string; effort: string }> {
-  const info = await stat(path)
-  if (!info.isFile() || info.size > 4096 || (process.platform !== 'win32' && (info.mode & 0o077) !== 0)) throw new Error('Fairway connection file must be private')
-  const connection = JSON.parse(await readFile(path, 'utf8'))
+  const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK)
+  const connection = await (async () => {
+    try {
+      const info = await file.stat()
+      if (!info.isFile() || info.nlink !== 1 || info.size > 4096 || (process.platform !== 'win32' && (info.mode & 0o077) !== 0)) throw new Error('Fairway connection file must be private')
+      const buffer = Buffer.alloc(4097)
+      const { bytesRead } = await file.read(buffer)
+      if (bytesRead !== info.size) throw new Error('Fairway connection unavailable')
+      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, bytesRead)))
+    } finally { await file.close() }
+  })()
   const url = new URL(connection.endpoint)
   if (connection.version !== 1 || url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port || url.pathname !== '/v1/decisions' || url.search || url.hash || url.username || url.password || !/^[a-f0-9]{64}$/.test(connection.token) || !Number.isFinite(connection.expiresAt) || connection.expiresAt <= Date.now()) throw new Error('Fairway connection unavailable')
   const response = await fetch(url, { method: 'POST', redirect: 'error', signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]), headers: { Authorization: 'Bearer ' + connection.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ task, session: 'pi-auto' }) })
@@ -51,12 +60,12 @@ export function createPiExtension(ask = askFairway) {
         // Only an explicit command brief goes to JEV. Expanded @files and history remain in Pi.
         if (!brief) throw new Error('Set /fairway-brief <short sanitized description> before using Fairway Auto')
         const task = brief
+        brief = null
         const chosen = await ask(task, request.signal)
         request.signal.throwIfAborted()
         const [provider, ...parts] = chosen.model.split('/')
         const model = ctx.modelRegistry.find(provider!, parts.join('/'))
         if (!model) throw new Error('Chosen Fairway model is not in the Pi catalog')
-        brief = null
         return { model, thinkingLevel: chosen.effort, state: chosen }
       }
     })

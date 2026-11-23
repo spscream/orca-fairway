@@ -1,5 +1,17 @@
 import type { Message } from './en.ts'
 export default {
+  "Run to result": "运行至结果",
+  "Preparing the plan automatically.": "正在自动准备计划。",
+  "The automatic correction limit was reached.": "已达到自动修正上限。",
+  "Run to result authorizes the coordinator and up to 8 steps, with up to 2 correction cycles. JEV and agent usage are billed separately.": "启动即授权协调器和最多 8 个步骤，其中最多 2 轮修正。JEV 和执行代理分别计费。",
+  "A saved workflow or plan record is missing.": "缺少已保存的工作流或计划记录。",
+  "The saved workflow or plan contains inconsistent data.": "已保存的工作流或计划包含不一致的数据。",
+  "Current section": "当前分区",
+  "Export diagnostics": "导出诊断信息",
+  "Text is too long. Shorten it to continue.": "文本太长。请缩短后继续。",
+  "Text is close to the length limit.": "文本长度接近上限。",
+  "Let JEV choose": "让 JEV 选择",
+  "Preparing with JEV may use one paid decision. Only this brief is sent to OpenRouter.": "使用 JEV 准备时可能产生一次付费决策。只有此摘要会发送到 OpenRouter。",
   "Statistics": "统计",
   "JEV usage": "JEV 用量",
   "Unable to load status.": "无法加载状态。",

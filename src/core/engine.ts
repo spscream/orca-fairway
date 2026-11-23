@@ -1,3 +1,4 @@
+import { ROUTING_BRIEF_BYTES } from './limits.ts'
 import { launchReceipt } from './launch-receipt.ts'
 import { atLeastFallback } from './profile-level.ts'
 import { parseJson } from './json.ts'
@@ -5,8 +6,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig, validateProfile, validateTask, validateCoordinatorPrompt, validateWorkflowPrompt } from './config.ts'
 import { httpTransport, makeRequest, METADATA_URL, DECISIONS_URL, RESERVATION_MICROUSD, validatePrice, validateAnswer } from './jev.ts'
 import type { Agent, Config, Ledger, Plan, Runtime, Store, Transport, Workspace } from './types.ts'
+import { savedPlan, savedId as validPlanId } from './saved-plan.ts'
+import { DIAGNOSTIC_HISTORY_LIMIT, diagnosticEvent, diagnosticHistory, type DiagnosticEvent } from './diagnostics.ts'
 export const digest = (x: unknown): string => createHash('sha256').update(JSON.stringify(x)).digest('hex')
-const validPlanId = (x: unknown): x is string => typeof x === 'string' && /^[0-9a-f-]{36}$/.test(x)
+
 async function interruptible<T>(action: () => Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted()
   let listener: () => void = () => {}
@@ -68,14 +71,16 @@ export class Engine {
     })
   }
   private async audit(event: Record<string, unknown>): Promise<void> {
+    const safe = diagnosticEvent({ ...event, at: Date.now() })
+    if (!safe) return
     await this.serial(async () => {
-      const previous = (await this.store.get('audit')) ?? []
-      requireThat(Array.isArray(previous), 'invalid_audit')
-      await this.store.set('audit', [...previous.slice(-199), { at: Date.now(), ...event }])
+      // Rewrite the sanitized history on append to repair legacy or malformed storage.
+      const previous = await this.history()
+      await this.store.set('audit', [...previous.slice(1 - DIAGNOSTIC_HISTORY_LIMIT), safe])
     })
   }
-  async history(): Promise<unknown[]> {
-    const a = (await this.store.get('audit')) ?? []; requireThat(Array.isArray(a), 'invalid_audit'); return a
+  async history(): Promise<DiagnosticEvent[]> {
+    return diagnosticHistory(await this.store.get('audit'))
   }
   cancelAll(): void { for (const c of this.active.values()) c.abort() }
   async cancel(id: string): Promise<void> {
@@ -90,9 +95,9 @@ export class Engine {
     options: { routingTask?: string; allowedAgents?: Agent[]; profileId?: string; coordinator?: boolean; workflow?: boolean } = {}): Promise<Plan> {
     requireThat(!options.workflow || (!options.coordinator && options.profileId === undefined && options.routingTask !== undefined && options.allowedAgents !== undefined && agent === 'auto'), 'invalid_workflow_plan')
     if (options.workflow) requireThat(Array.isArray(options.allowedAgents) && options.allowedAgents.length >= 1 && options.allowedAgents.length <= 3 && new Set(options.allowedAgents).size === options.allowedAgents.length && options.allowedAgents.every(a => ['codex', 'pi', 'cursor'].includes(a)), 'invalid_workflow_plan')
-    requireThat(!options.coordinator || (options.profileId !== undefined && options.routingTask === undefined && options.allowedAgents === undefined), 'invalid_coordinator_plan')
+    requireThat(!options.coordinator || (agent === 'auto' && options.allowedAgents === undefined && ((options.profileId !== undefined) !== (options.routingTask !== undefined))), 'invalid_coordinator_plan')
     if (options.coordinator) validateCoordinatorPrompt(task); else if (options.workflow) validateWorkflowPrompt(task); else validateTask(task)
-    if (options.routingTask !== undefined) validateTask(options.routingTask)
+    if (options.routingTask !== undefined) validateTask(options.routingTask, ROUTING_BRIEF_BYTES)
     requireThat(validPlanId(requestId), 'invalid_request_id')
     requireThat(workspace.host === 'local' && typeof workspace.path === 'string' && workspace.path.length > 0 && typeof workspace.id === 'string', 'invalid_workspace')
     const keyGeneration = this.keyGeneration, keyRevision = await this.keyRevision()
@@ -101,7 +106,7 @@ export class Engine {
     const candidates = c.profiles.filter(p => (agent === 'auto' || p.agent === agent) && (!options.allowedAgents || options.allowedAgents.includes(p.agent)) && (!options.profileId || p.id === options.profileId))
     requireThat(candidates.length, 'no_profiles_for_agent')
     await this.serial(async () => {
-      requireThat(!(await this.store.get('plan:' + requestId)), 'duplicate_request')
+      requireThat((await this.store.get('plan:' + requestId)) == null, 'duplicate_request')
       await this.store.set('plan:' + requestId, { id: requestId, state: 'planning' })
     })
     let profile = candidates.find(p => p.id === c.fallback) ?? candidates[0]!
@@ -109,7 +114,7 @@ export class Engine {
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(this.timeoutMs), ...(externalSignal ? [externalSignal] : [])])
     let reason = 'offline', confidence: number | null = null, costUsd: number | null = null, reservedMicrousd = 0
     try {
-      await this.audit({ id: requestId, state: 'planning', agent })
+      await this.audit({ id: requestId, state: 'planning' })
       try {
         if (options.profileId !== undefined) reason = 'coordinator_profile'
         else if (c.live) {
@@ -121,6 +126,7 @@ export class Engine {
             await this.reserve(c); reservedMicrousd = RESERVATION_MICROUSD
             await interruptible(async () => {
               validatePrice(await this.transport(METADATA_URL, { signal }))
+              signal.throwIfAborted()
               const answer = validateAnswer(await this.transport(DECISIONS_URL, { signal, body, key }), candidates)
               signal.throwIfAborted()
               costUsd = answer.cost; confidence = answer.confidence
@@ -148,36 +154,38 @@ export class Engine {
         if (controller.signal.aborted || externalSignal?.aborted) { plan.state = 'cancelled'; plan.reason = 'cancelled' }
         await this.store.set('plan:' + requestId, plan)
       })
-      await this.audit({ id: requestId, state: plan.state, profile: profile.id, agent: profile.agent, model: profile.model, effort: profile.effort, reason: plan.reason, confidence, costUsd, reservedMicrousd })
+      await this.audit({ id: requestId, state: plan.state, reason: plan.reason })
       return plan
     } finally { this.active.delete(requestId) }
   }
   async workflowEvent(flowId: string, state: string, stepId?: string, diagnostic?: { reason: string | null; stage?: string }): Promise<void> {
     await this.audit({ flowId, state, ...(stepId ? { stepId } : {}), ...diagnostic })
   }
-  async launch(id: string, task: string, workspace: Workspace, beforeDispatch?: () => void): Promise<Plan> {
+  async launch(id: string, task: string, workspace: Workspace, beforeDispatch?: () => void, expected?: Plan): Promise<Plan> {
     requireThat(validPlanId(id), 'invalid_plan')
     const keyGeneration = this.keyGeneration
     const p = await this.store.get('plan:' + id)
-    requireThat(record(p) && p.id === id, 'invalid_plan')
-    const plan = p as unknown as Plan, config = await this.config()
-    if (plan.purpose === 'coordinator' && plan.reason === 'coordinator_profile') validateCoordinatorPrompt(task); else if (plan.purpose === 'workflow') validateWorkflowPrompt(task); else validateTask(task)
+    requireThat(p != null, 'plan_not_found')
+    const plan = savedPlan(p, id), config = await this.config()
+    if (expected) requireThat(digest(plan) === digest(expected), 'plan_changed')
+    if (plan.purpose === 'coordinator') validateCoordinatorPrompt(task); else if (plan.purpose === 'workflow') validateWorkflowPrompt(task); else validateTask(task)
     requireThat(config.execution, 'execution_disabled')
     validateProfile(plan.profile)
     requireThat(config.profiles.some(profile => digest(profile) === digest(plan.profile)), 'profile_changed')
     requireThat(plan.state === 'shadow' && plan.expiresAt > Date.now(), 'plan_not_launchable')
     requireThat(await this.isCurrent(plan, config) && plan.taskHash === digest(task) && plan.workspaceHash === digest(workspace), 'plan_changed')
-    requireThat(plan.reason !== 'cancelled' && (await this.runtime.verify(plan.profile)).verified, 'profile_unverified')
+    requireThat(plan.reason !== 'cancelled' && plan.evidence.verified && (await this.runtime.verify(plan.profile)).verified, 'profile_unverified')
     await this.serial(async () => {
       const latest = await this.config()
       requireThat(latest.execution && await this.isCurrent(plan, latest), 'plan_changed')
       const current = await this.store.get('plan:' + id)
       requireThat(record(current) && current.state === 'shadow', 'plan_already_consumed')
+      requireThat(digest(savedPlan(current, id)) === digest(plan), 'plan_changed')
       plan.state = 'dispatch_pending'
       await this.store.set('plan:' + id, plan)
     })
     // Persisted intent + audit before starting a process; an unknown outcome is never retried.
-    await this.audit({ id, state: 'dispatch_pending', profile: plan.profile.id })
+    await this.audit({ id, state: 'dispatch_pending' })
     const latest = await this.config()
     const current = await this.isCurrent(plan, latest)
     try {
@@ -199,7 +207,7 @@ export class Engine {
       plan.state = confirmed ? 'submitted' : result.code !== 0 ? 'dispatch_failed' : 'dispatch_unknown'
     } catch { plan.state = 'dispatch_unknown' }
     await this.serial(() => this.store.set('plan:' + id, plan))
-    await this.audit({ id, state: plan.state, profile: plan.profile.id })
+    await this.audit({ id, state: plan.state })
     return plan
   }
 }

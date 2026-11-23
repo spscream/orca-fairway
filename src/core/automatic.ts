@@ -1,3 +1,4 @@
+import { savedId } from './saved-plan.ts'
 import { routingBudget, routingFailure } from './routing-budget.ts'
 import { atLeastFallback } from './profile-level.ts'
 import { digest, Engine } from './engine.ts'
@@ -9,6 +10,7 @@ interface Active { id: string; workspace: Workspace }
 export class Automatic {
   private tail: Promise<unknown> = Promise.resolve()
   private stopped = false
+  private pauseEpoch = 0
   private target: Active | null = null
   private controller: AbortController | null = null
   private planId: string | null = null
@@ -16,8 +18,8 @@ export class Automatic {
   private serial<T>(fn: () => Promise<T>): Promise<T> { const p = this.tail.then(fn, fn); this.tail = p.catch(() => {}); return p }
   async active(): Promise<Active | null> {
     const active = await this.store.get('automaticActive')
-    if (!active) return null
-    requireThat(record(active) && typeof active.id === 'string' && /^[0-9a-f-]{36}$/.test(active.id) && record(active.workspace) && active.workspace.host === 'local' && typeof active.workspace.id === 'string' && typeof active.workspace.path === 'string', 'invalid_automatic_state')
+    if (active == null) return null
+    requireThat(record(active) && savedId(active.id) && record(active.workspace) && active.workspace.host === 'local' && typeof active.workspace.id === 'string' && typeof active.workspace.path === 'string', 'invalid_automatic_state')
     return active as unknown as Active
   }
   private async mark(w: Workflow, state: AutomaticState['state'], reason: AutomaticReason | null, failureStage?: AutomaticState['failureStage']): Promise<Workflow> {
@@ -33,35 +35,66 @@ export class Automatic {
     const w = await this.flows.get(active.id, active.workspace)
     if (!w.cancelled && w.automatic?.state === 'running') await this.mark(w, 'paused', 'interrupted')
   }
-  start(id: string, workspace: Workspace): Promise<Workflow> {
-    return this.serial(async () => {
-      const previous = await this.active()
-      if (previous && previous.id !== id) {
-        const old = await this.flows.get(previous.id, previous.workspace)
-        requireThat(old.cancelled || old.automatic?.state !== 'running', 'automatic_workflow_active')
-        for (const run of Object.values(old.runs)) {
-          requireThat(!['dispatch_pending', 'dispatch_unknown'].includes(run.state), 'automatic_workflow_active')
-          if (run.state === 'submitted') {
-            const observed = run.plan && await this.runtime.observe?.(run.plan, old.workspace)
-            requireThat(observed === 'done', 'automatic_workflow_active')
-          }
+  private async ensureAvailable(id?: string): Promise<void> {
+    const previous = await this.active()
+    if (previous && previous.id !== id) {
+      const old = await this.flows.get(previous.id, previous.workspace)
+      requireThat(old.cancelled || old.automatic?.state !== 'running', 'automatic_workflow_active')
+      if (old.automatic?.endToEnd && !old.approvedHash) {
+        requireThat(!['dispatch_pending', 'dispatch_unknown'].includes(old.coordinator.state), 'automatic_workflow_active')
+        if (old.coordinator.state === 'submitted') {
+          requireThat(await this.runtime.observe?.(old.coordinator, old.workspace) === 'done', 'automatic_workflow_active')
         }
       }
+      for (const run of Object.values(old.runs)) {
+        requireThat(!['dispatch_pending', 'dispatch_unknown'].includes(run.state), 'automatic_workflow_active')
+        if (run.state === 'submitted') {
+          const observed = run.plan && await this.runtime.observe?.(run.plan, old.workspace)
+          requireThat(observed === 'done', 'automatic_workflow_active')
+        }
+      }
+    }
+  }
+  private async activate(w: Workflow, state: AutomaticState): Promise<Workflow> {
+    this.stopped = false
+    const target = { id: w.id, workspace: w.workspace }
+    await this.store.set('automaticActive', target)
+    this.target = target
+    return this.flows.automatic(w.id, w.workspace, state)
+  }
+  startFromTask(task: string, profileId: string | undefined, workspace: Workspace, routingBrief?: string): Promise<Workflow> {
+    return this.serial(async () => {
+      await this.ensureAvailable()
+      const config = await this.engine.config()
+      requireThat(config.execution, 'execution_disabled')
+      const epoch = this.pauseEpoch
+      const w = await this.flows.create(task, profileId, workspace, routingBrief, true)
+      requireThat(epoch === this.pauseEpoch, 'plan_changed')
+      requireThat(digest(await this.engine.config()) === digest(config), 'plan_changed')
+      return this.activate(w, { state: 'running', reason: null, configHash: digest(config), approvedHash: null,
+        endToEnd: true, repairs: 0, expiresAt: this.now() + 2 * 60 * 60_000, dispatches: 0, limit: 8 })
+    })
+  }
+  start(id: string, workspace: Workspace): Promise<Workflow> {
+    return this.serial(async () => {
+      await this.ensureAvailable(id)
       const config = await this.engine.config(); requireThat(config.execution, 'execution_disabled')
       let w = await this.flows.get(id, workspace)
-      requireThat(!w.cancelled && w.analysis, 'workflow_not_ready')
+      requireThat(!w.cancelled, 'workflow_not_ready')
+      if (w.automatic?.endToEnd && w.approvedHash === null) {
+        requireThat(w.automatic.state === 'paused' && !['dispatch_pending', 'dispatch_unknown', 'dispatch_failed'].includes(w.coordinator.state), 'workflow_not_ready')
+        return this.activate(w, { ...w.automatic, state: 'running', reason: null, configHash: digest(config), expiresAt: this.now() + 2 * 60 * 60_000 })
+      }
+      requireThat(w.analysis, 'workflow_not_ready')
       if (!Object.values(w.runs).some(run => run.state === 'submitted')) requireThat(routingBudget(config, await this.engine.ledger(), w).sufficient, 'automatic_budget_exhausted')
       requireThat(!Object.values(w.runs).some(r => ['dispatch_pending', 'dispatch_unknown', 'dispatch_failed'].includes(r.state)), 'workflow_running')
       if (!w.approvedHash) w = await this.flows.approve(id, workspace)
       requireThat(w.approvedHash === digest(w.analysis), 'workflow_not_ready')
       const remaining = w.analysis!.steps.filter(s => w.runs[s.id]?.state !== 'completed')
       requireThat(remaining.length > 0, 'workflow_not_ready')
-      this.stopped = false
-      const target = { id, workspace }
-      await this.store.set('automaticActive', target)
-      this.target = target
-      w = await this.flows.automatic(id, workspace, { state: 'running', reason: null, configHash: digest(config), approvedHash: w.approvedHash!, expiresAt: this.now() + 2 * 60 * 60_000, dispatches: w.automatic?.dispatches ?? 0, limit: w.analysis!.steps.length })
-      return w
+      return this.activate(w, { ...(w.automatic?.endToEnd ? { endToEnd: true, repairs: w.automatic.repairs } : {}),
+        state: 'running', reason: null, configHash: digest(config), approvedHash: w.approvedHash!,
+        expiresAt: this.now() + 2 * 60 * 60_000, dispatches: w.automatic?.dispatches ?? 0, limit: w.analysis!.steps.length })
     })
   }
   async pauseFor(id: string, workspace: Workspace): Promise<Workflow> {
@@ -70,6 +103,7 @@ export class Automatic {
     const paused = await this.pause(); requireThat(paused, 'workflow_not_ready'); return paused
   }
   async pause(reason: AutomaticReason = 'paused'): Promise<Workflow | null> {
+    this.pauseEpoch++
     this.stopped = true; this.controller?.abort()
     if (this.planId) await this.engine.cancel(this.planId)
     return this.serial(async () => {
@@ -79,6 +113,36 @@ export class Automatic {
       return this.mark(w, 'paused', reason)
     })
   }
+  private async prepare(w: Workflow, authorization: AutomaticState): Promise<Workflow> {
+    const plan = w.coordinator
+    if (plan.state === 'shadow') {
+      if (!plan.evidence.verified) return this.mark(w, 'paused', 'unverified')
+      if (!['coordinator_profile', 'offline', 'selected', 'low_confidence_ranked', 'low_confidence_fallback'].includes(plan.reason)) {
+        return this.mark(w, 'paused', routingFailure(plan.reason))
+      }
+      const launched = await this.flows.launchCoordinator(w.id, w.workspace, () => {
+        requireThat(!this.stopped && this.now() < authorization.expiresAt, 'dispatch_paused')
+      })
+      return launched.coordinator.state === 'submitted' ? launched : this.mark(launched, 'paused', 'dispatch_unknown', 'dispatch')
+    }
+    if (plan.state !== 'submitted') return this.mark(w, 'paused', 'dispatch_unknown')
+    const observed = await this.runtime.observe?.(plan, w.workspace)
+    if (this.stopped) return w
+    if (observed === 'blocked') return this.mark(w, 'paused', 'agent_blocked')
+    if (observed !== 'done') {
+      return this.now() - plan.createdAt >= 30 * 60_000 ? this.mark(w, 'paused', 'step_timeout') : w
+    }
+    try {
+      await this.flows.read(w.id, w.workspace)
+      if (this.stopped) return this.flows.get(w.id, w.workspace)
+      return await this.flows.approve(w.id, w.workspace, true)
+    } catch (error) {
+      const code = error instanceof RouterError ? error.code : ''
+      const reason = code === 'analysis_needs_clarification' || code === 'analysis_missing_sources' ? 'analysis_needs_input'
+        : code === 'analysis_not_found' ? 'result_missing' : 'result_invalid'
+      return this.mark(await this.flows.get(w.id, w.workspace), 'paused', reason, 'prepare')
+    }
+  }
   tick(): Promise<Workflow | null> {
     return this.serial(async () => {
       const active = await this.active(); if (!active) return null
@@ -87,10 +151,11 @@ export class Automatic {
       const a = w.automatic, config = await this.engine.config()
       requireThat(Number.isSafeInteger(a.dispatches) && a.dispatches >= 0 && Number.isSafeInteger(a.limit) && a.limit >= 1 && a.limit <= 8 && a.dispatches <= a.limit && Number.isFinite(a.expiresAt), 'invalid_automatic_state')
       if (!config.execution) return this.mark(w, 'paused', 'execution_disabled')
-      if (digest(config) !== a.configHash || w.approvedHash !== a.approvedHash || digest(w.analysis) !== a.approvedHash) return this.mark(w, 'paused', 'settings_changed')
+      if (digest(config) !== a.configHash || w.approvedHash !== a.approvedHash || (a.approvedHash !== null && digest(w.analysis) !== a.approvedHash)) return this.mark(w, 'paused', 'settings_changed')
       if (this.now() >= a.expiresAt) return this.mark(w, 'paused', 'expired')
       let stage: NonNullable<AutomaticState['failureStage']> = 'prepare'
       try {
+        if (a.endToEnd && a.approvedHash === null) return await this.prepare(w, a)
         const entries = Object.entries(w.runs)
         if (entries.some(([, run]) => ['dispatch_unknown', 'dispatch_failed', 'dispatch_pending'].includes(run.state))) return this.mark(w, 'paused', 'dispatch_unknown')
         const submitted = entries.filter(([, run]) => run.state === 'submitted')
@@ -112,6 +177,13 @@ export class Automatic {
           let result
           try { result = await this.flows.result(w.id, stepId, w.workspace) }
           catch { return this.mark(w, 'paused', 'result_invalid') }
+          if (result?.repair && a.endToEnd && !w.analysis!.steps.find(step => step.id === stepId)?.reviewRequired) {
+            try { return await this.flows.repair(w.id, stepId, w.workspace) }
+            catch (error) {
+              if (error instanceof RouterError && error.code === 'repair_limit') return this.mark(w, 'paused', 'repair_limit')
+              throw error
+            }
+          }
           if (result && (result.status !== 'completed' || result.questions.length || result.checks.some(c => c.status !== 'passed'))) return this.mark(w, 'paused', result.questions.length || result.status === 'blocked' ? 'agent_blocked' : 'checks_failed')
           if (!result) return elapsed <= 20000 ? w : this.mark(w, 'paused', 'result_missing')
           if (w.analysis!.steps.find(step => step.id === stepId)?.reviewRequired) return this.mark(w, 'paused', 'review_required')

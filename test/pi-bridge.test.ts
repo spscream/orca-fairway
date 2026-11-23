@@ -50,3 +50,42 @@ test('Pi refuses an absent runtime model without calling an executor', async () 
   await command.handler('Synthetic task')
   await assert.rejects(definition.route({ reason: 'user', signal: new AbortController().signal, messages: [] }, { modelRegistry: { find: () => undefined } }), /not in the Pi catalog/)
 })
+
+test('closing the Pi bridge aborts an ongoing decision and allows a clean restart', async () => {
+  const root = await mkdtemp(join(process.cwd(), '.test-bridge-'))
+  let started!: () => void
+  const entered = new Promise<void>(resolve => { started = resolve })
+  let signal!: AbortSignal
+  const bridge = await startBridge(root, async (_task, _session, requestSignal) => {
+    signal = requestSignal
+    started()
+    await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
+    return null
+  })
+  try {
+    const request = askFairway('Synthetic brief', new AbortController().signal, bridge.path).catch(error => error)
+    await entered
+    await Promise.all([bridge.close(), bridge.close()])
+    assert.equal(signal.aborted, true)
+    assert.ok(await request instanceof Error)
+    const reopened = await startBridge(root, async () => null)
+    await reopened.close()
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+test('a Pi brief is consumed before routing and a concurrent turn cannot reuse it', async () => {
+  let definition: any, command: any, finish!: () => void
+  let requests = 0
+  createPiExtension(async () => {
+    requests++
+    await new Promise<void>(resolve => { finish = resolve })
+    return { model: 'synthetic/model', effort: 'low' }
+  })({ registerCommand: (_n, opts) => { command = opts }, registerVirtualModel: d => { definition = d } })
+  const request = { reason: 'user', signal: new AbortController().signal, messages: [] }
+  const ctx = { modelRegistry: { find: () => ({ provider: 'synthetic', id: 'model' }) } }
+  await command.handler('Synthetic brief')
+  const first = definition.route(request, ctx)
+  await assert.rejects(definition.route(request, ctx), /fairway-brief/)
+  finish(); await first
+  assert.equal(requests, 1)
+})

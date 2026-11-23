@@ -21,16 +21,20 @@ function fixture(options: { key?: string | null; maxCalls?: number; invalidChoic
     return { answers: { profile: { type: 'choice', choice, confidence: options.confidence ?? 1, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: 0.000001 } }
   }
   let analysis: Analysis = { version: 1, summary: 'Synthetic analysis', assumptions: [], questions: [], sources: [], steps: ['first', 'second'].map((id, i) => ({ id, title: 'Synthetic step', instructions: 'Perform a synthetic check.', acceptance: 'Synthetic check passes.', context: '', routingBrief: 'Synthetic bounded work.', allowedAgents: ['codex'], dependsOn: i ? ['first'] : [] })) }
-  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async () => JSON.stringify(analysis), createResult: async (_id, step, token) => `${options.resultPrefix ?? '/synthetic-private'}/result-${step}-${token}.json`, readResult: async (_id, _step, token) => reports.get(token) ?? null }
-  const engine = new Engine(store, runtime, async () => options.key === undefined ? 'synthetic-key' : options.key, transport), flows = new Workflows(store, engine, artifacts)
-  const automatic = new Automatic(store, flows, engine, runtime, () => now)
+  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async id => JSON.stringify({ ...analysis, coordinatorPlanId: (memory.get('workflow:' + id) as Workflow).analysisBinding }), createResult: async (_id, step, token) => `${options.resultPrefix ?? '/synthetic-private'}/result-${step}-${token}.json`, readResult: async (_id, _step, token) => reports.get(token) ?? null }
+  const restart = () => {
+    const engine = new Engine(store, runtime, async () => options.key === undefined ? 'synthetic-key' : options.key, transport)
+    const flows = new Workflows(store, engine, artifacts)
+    return { engine, flows, automatic: new Automatic(store, flows, engine, runtime, () => now) }
+  }
+  const { engine, flows, automatic } = restart()
   const create = async () => { const w = await flows.create('Synthetic task', config.fallback, workspace); await flows.read(w.id, workspace); return w.id }
   const report = async (id: string, step = 'first', overrides: Record<string, unknown> = {}) => {
     const w = await flows.get(id, workspace), run = w.runs[step]!
     const value = { version: 1, workflowId: id, stepId: step, planId: run.plan!.id, token: run.result!.token, status: 'completed', summary: 'Synthetic check passed.', checks: [{ name: 'Synthetic check', status: 'passed', evidence: 'Synthetic evidence.' }], questions: [], ...overrides }
     reports.set(run.result!.token, JSON.stringify(value)); return value
   }
-  return { config, memory, store, engine, flows, runtime, automatic, create, report, reports, get launches() { return launches }, get decisions() { return decisions }, set observed(value: typeof observed) { observed = value }, advance(ms: number) { now += ms }, setAnalysis(value: Analysis) { analysis = value } }
+  return { config, memory, store, engine, flows, runtime, automatic, restart, create, report, reports, get launches() { return launches }, get decisions() { return decisions }, set observed(value: typeof observed) { observed = value }, advance(ms: number) { now += ms }, setAnalysis(value: Analysis) { analysis = value } }
 }
 test('automatic plan needs one explicit authorization, selects each profile and accepts only ended turns with passed reports', async () => {
   const f = fixture(), id = await f.create()
@@ -132,7 +136,7 @@ test('shadow mode and unknown dispatches cannot authorize or restart automatic e
   const shadow = fixture({ execution: false }), shadowId = await shadow.create()
   await assert.rejects(shadow.automatic.start(shadowId, workspace), /execution_disabled/); assert.equal(shadow.launches, 0)
   const f = fixture(), id = await f.create(); await f.flows.approve(id, workspace)
-  const w = await f.flows.get(id, workspace); w.runs.first!.state = 'dispatch_unknown'; await f.store.set('workflow:' + id, w)
+  const w = await f.flows.route(id, 'first', workspace); w.runs.first!.state = 'dispatch_unknown'; await f.store.set('workflow:' + id, w)
   await assert.rejects(f.automatic.start(id, workspace), /workflow_running/); assert.equal(f.launches, 0)
 })
 test('authorization expiry during routing and corrupt launch limits fail before executor dispatch', async () => {
@@ -295,20 +299,45 @@ test('pause during the final intent write prevents launch and preserves the disp
   assert.equal(flow.runs.first!.state, 'planned')
   assert.equal(flow.automatic?.state, 'paused')
   assert.equal(flow.automatic?.dispatches, 0)
+  assert.ok(pausing)
   assert.equal(f.launches, 0)
+  f.store.set = write
+  const restarted = f.restart()
+  await restarted.automatic.recover()
+  assert.equal((await restarted.automatic.tick())?.automatic?.state, 'paused')
+  assert.deepEqual([f.launches, f.decisions], [0, 1])
 })
 
 test('continuation accepts a late completed result without rerunning the timed-out step', async () => {
   const f = fixture(), id = await f.create()
   await f.automatic.start(id, workspace)
   await f.automatic.tick()
+  const firstPlan = (await f.flows.get(id, workspace)).runs.first!.plan!.id
+  assert.deepEqual([f.launches, f.decisions], [1, 1])
+  const restarted = f.restart().automatic
+  await restarted.recover()
+  const interrupted = await restarted.tick()
+  assert.equal(interrupted?.automatic?.reason, 'interrupted')
+  assert.equal(interrupted?.runs.first!.state, 'submitted')
+  assert.deepEqual([f.launches, f.decisions], [1, 1])
+  await restarted.start(id, workspace)
   f.advance(31 * 60_000)
-  assert.equal((await f.automatic.tick())?.automatic?.reason, 'step_timeout')
-  await f.report(id)
+  assert.equal((await restarted.tick())?.automatic?.reason, 'step_timeout')
   f.observed = 'done'
-  await f.automatic.start(id, workspace)
-  assert.equal((await f.automatic.tick())?.runs.first!.state, 'completed')
-  assert.equal(f.launches, 1)
+  await f.report(id)
+  assert.equal((await restarted.tick())?.runs.first!.state, 'submitted')
+  await restarted.start(id, workspace)
+  const accepted = await restarted.tick()
+  assert.equal(accepted?.runs.first!.state, 'completed')
+  assert.equal(accepted?.runs.first!.plan!.id, firstPlan)
+  assert.equal(accepted?.runs.second!.state, 'waiting')
+  assert.deepEqual([f.launches, f.decisions], [1, 1])
+  assert.equal((await restarted.tick())?.runs.second!.state, 'submitted')
+  await f.report(id, 'second')
+  await restarted.tick()
+  assert.equal((await restarted.tick())?.automatic?.state, 'completed')
+  await restarted.tick()
+  assert.deepEqual([f.launches, f.decisions], [2, 2])
 })
 
 test('an explicitly reviewable step requires confirmation after verified completion', async () => {
@@ -326,4 +355,145 @@ test('an explicitly reviewable step requires confirmation after verified complet
   assert.equal((await f.automatic.tick())?.automatic?.reason, 'review_required')
   assert.equal((await f.flows.review(id, 'first', 'Synthetic independent evidence', workspace)).runs.first?.state, 'completed')
   assert.equal(f.launches, 1)
+})
+
+test('recovery and ticking reject corrupt saved authorization without routing or dispatch', async () => {
+  const f = fixture(), id = await f.create()
+  const initial = await f.automatic.start(id, workspace)
+  for (const change of [{ approvedHash: '0'.repeat(64) }, { limit: 1 }, { dispatches: -1 }, { state: 'completed' }, { reason: {} }]) {
+    await f.store.set('workflow:' + id, { ...initial, automatic: { ...initial.automatic, ...change } })
+    const restarted = new Automatic(f.store, f.flows, f.engine, f.runtime)
+    await assert.rejects(restarted.recover(), /invalid_automatic_state/)
+    await assert.rejects(restarted.tick(), /invalid_automatic_state/)
+  }
+  assert.equal(f.decisions, 0)
+  assert.equal(f.launches, 0)
+})
+
+test('recovery checks saved receipts and version one outcomes before observing an executor', async () => {
+  const f = fixture(), id = await f.create()
+  await f.automatic.start(id, workspace)
+  const submitted = (await f.automatic.tick())!
+  const run = submitted.runs.first!
+  const plan = run.plan!
+  await f.report(id)
+  await f.flows.result(id, 'first', workspace)
+  const saved = await f.flows.get(id, workspace)
+  assert.equal(saved.runs.first!.outcome!.findings, undefined)
+  const recovered = new Automatic(f.store, f.flows, f.engine, f.runtime)
+  let observations = 0
+  f.runtime.observe = async () => { observations++; return 'done' }
+  const changed = structuredClone(saved)
+  changed.runs.first!.outcome!.checks = []
+  await f.store.set('workflow:' + id, changed)
+  await assert.rejects(recovered.recover(), /invalid_step_result/)
+  await assert.rejects(recovered.tick(), /invalid_step_result/)
+  plan.dispatch!.operationId = 'invalid operation'
+  await f.store.set('plan:' + plan.id, plan)
+  await f.store.set('workflow:' + id, submitted)
+  await assert.rejects(recovered.recover(), /invalid_plan/)
+  await assert.rejects(recovered.tick(), /invalid_plan/)
+  assert.equal(observations, 0)
+  assert.equal(f.launches, 1)
+})
+
+test('one explicit full-flow start approves analysis, repairs a defect and gates dependent work on verification', async () => {
+  const f = fixture()
+  const created = await f.automatic.startFromTask('Synthetic full task', f.config.fallback, workspace)
+  const id = created.id
+  assert.match(created.coordinatorTask, /final verification step/)
+  assert.equal(created.approvedHash, null)
+  assert.equal(f.launches, 0)
+  await f.automatic.tick()
+  assert.equal(f.launches, 1)
+  assert.equal((await f.automatic.tick())?.approvedHash, null)
+  f.observed = 'done'
+  const approved = (await f.automatic.tick())!
+  assert.equal(approved.automatic?.approvedHash, approved.approvedHash)
+  assert.ok(approved.approvedHash)
+  assert.equal(f.launches, 1)
+  await f.automatic.tick()
+  await f.report(id, 'first', { version: 3, status: 'failed', findings: [], repair: 'Correct synthetic defect.',
+    checks: [{ name: 'Synthetic check', status: 'failed', evidence: 'Synthetic defect.' }] })
+  const amended = (await f.automatic.tick())!
+  assert.equal(amended.automatic?.repairs, 1)
+  assert.notEqual(amended.approvedHash, approved.approvedHash)
+  assert.equal(amended.runs.first!.outcome?.status, 'failed')
+  assert.deepEqual(amended.analysis?.steps.find(s => s.id === 'second')?.dependsOn, ['fairway_verify_1'])
+  assert.deepEqual(amended.analysis?.steps.find(s => s.id === 'fairway_verify_1')?.dependsOn, ['first', 'fairway_fix_1'])
+  assert.equal(amended.runs.second!.state, 'waiting')
+  assert.equal(f.launches, 2)
+  await f.report(id)
+  assert.equal((await f.flows.result(id, 'first', workspace))?.status, 'failed')
+  for (const step of ['fairway_fix_1', 'fairway_verify_1', 'second']) {
+    const launched = (await f.automatic.tick())!
+    assert.equal(launched.runs[step]!.state, 'submitted')
+    await f.report(id, step, { version: 3, findings: [], repair: null })
+    assert.equal((await f.automatic.tick())?.runs[step]?.state, 'completed')
+  }
+  assert.equal((await f.automatic.tick())?.automatic?.state, 'completed')
+  assert.equal(f.launches, 5)
+  assert.equal(f.decisions, 4)
+})
+
+test('full-flow bootstrap respects shadow mode, restart and unresolved coordinator questions', async () => {
+  const shadow = fixture({ execution: false })
+  await assert.rejects(shadow.automatic.startFromTask('Synthetic full task', shadow.config.fallback, workspace), /execution_disabled/)
+  assert.equal(shadow.launches, 0)
+  assert.equal(shadow.decisions, 0)
+  const f = fixture()
+  f.setAnalysis({ version: 1, summary: 'Synthetic analysis', assumptions: [], questions: ['Synthetic approval needed.'], sources: [],
+    steps: [{ id: 'first', title: 'Synthetic check', instructions: 'Perform a synthetic check.', acceptance: 'Synthetic check passes.',
+      context: '', routingBrief: 'Synthetic bounded work.', allowedAgents: ['codex'], dependsOn: [] }] })
+  const { id } = await f.automatic.startFromTask('Synthetic full task', f.config.fallback, workspace)
+  await f.automatic.tick()
+  const restarted = f.restart()
+  await restarted.automatic.recover()
+  f.observed = 'done'
+  assert.equal((await restarted.automatic.tick())?.automatic?.state, 'paused')
+  await restarted.automatic.start(id, workspace)
+  const paused = (await restarted.automatic.tick())!
+  assert.equal(paused.automatic?.reason, 'analysis_needs_input')
+  assert.equal(paused.approvedHash, null)
+  assert.equal(f.launches, 1)
+  assert.equal(f.decisions, 0)
+})
+
+test('adaptive repair stops at its cycle limit and keeps the last failed report', async () => {
+  const f = fixture({ maxCalls: 10 })
+  const { id } = await f.automatic.startFromTask('Synthetic full task', f.config.fallback, workspace)
+  await f.automatic.tick()
+  f.observed = 'done'
+  await f.automatic.tick()
+  for (const step of ['first', 'fairway_fix_1', 'fairway_fix_2']) {
+    const launched = (await f.automatic.tick())!
+    assert.equal(launched.runs[step]!.state, 'submitted')
+    await f.report(id, step, { version: 3, status: 'failed', findings: [], repair: 'Correct synthetic defect.',
+      checks: [{ name: 'Synthetic check', status: 'failed', evidence: 'Synthetic defect.' }] })
+    await f.automatic.tick()
+  }
+  const paused = (await f.automatic.tick())!
+  assert.equal(paused.automatic?.reason, 'repair_limit')
+  assert.equal(paused.automatic?.repairs, 2)
+  assert.equal(paused.analysis?.steps.length, 6)
+  assert.equal(paused.runs.fairway_fix_2?.outcome?.status, 'failed')
+  assert.equal(paused.runs.second?.state, 'waiting')
+  assert.equal(f.launches, 4)
+})
+
+test('new correction steps respect the remaining JEV allowance before routing', async () => {
+  const f = fixture({ maxCalls: 2 })
+  const { id } = await f.automatic.startFromTask('Synthetic full task', f.config.fallback, workspace)
+  await f.automatic.tick()
+  f.observed = 'done'
+  await f.automatic.tick()
+  await f.automatic.tick()
+  await f.report(id, 'first', { version: 3, findings: [{ severity: 'P2', summary: 'Synthetic defect.', evidence: 'Synthetic evidence.' }],
+    repair: 'Correct synthetic defect.' })
+  await f.automatic.tick()
+  const paused = (await f.automatic.tick())!
+  assert.equal(paused.automatic?.reason, 'budget_exhausted')
+  assert.equal(paused.runs.fairway_fix_1?.state, 'waiting')
+  assert.equal(f.launches, 2)
+  assert.equal(f.decisions, 1)
 })

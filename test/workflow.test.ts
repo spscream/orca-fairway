@@ -1,9 +1,10 @@
+import { parseJson } from '../src/core/json.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile, symlink, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Engine } from '../src/core/engine.ts'
+import { digest, Engine } from '../src/core/engine.ts'
 import { DEFAULT_CONFIG } from '../src/core/config.ts'
 import { Workflows, validateAnalysis, coordinatorPrompt, type Analysis, type Artifacts } from '../src/core/workflow.ts'
 import { PrivateArtifacts } from '../src/core/artifacts.ts'
@@ -32,7 +33,15 @@ function fixture(options: { execution?: boolean; live?: boolean } = {}) {
     return { answers: { profile: { type: 'choice', choice, confidence: .9, probabilities: Object.fromEntries(ids.map(id => [id, id === choice ? 1 : 0])) } }, usage: { cost: .00001 } }
   }
   const engine = new Engine(store, runtime, async () => { keyReads++; return 'synthetic-key' }, transport)
-  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async () => raw }
+  const artifacts: Artifacts = { create: async () => '/synthetic-private/analysis.json', read: async id => {
+    const flow = data.get('workflow:' + id) as { analysisBinding?: string } | undefined
+    if (!raw || !flow?.analysisBinding) return raw
+    try {
+      const value = parseJson(raw) as Record<string, unknown>
+      if (value?.version === 1 && !Object.hasOwn(value, 'coordinatorPlanId')) return JSON.stringify({ ...value, coordinatorPlanId: flow.analysisBinding })
+    } catch { /* Preserve invalid test fixtures. */ }
+    return raw
+  } }
   const flows = new Workflows(store, engine, artifacts)
   return { flows, engine, config, data, store, artifacts, runtime, calls, traffic, get keyReads() { return keyReads }, setRaw(value: unknown) { raw = typeof value === 'string' ? value : JSON.stringify(value) } }
 }
@@ -218,4 +227,104 @@ test('long coordinator tasks stay local and survive preparation, refresh and lau
   assert.ok(Buffer.byteLength(coordinatorPrompt('\u0001'.repeat(8192), '/synthetic-private/analysis.json')) <= 65536)
   assert.equal(f.traffic.length, 0); assert.equal(f.keyReads, 0)
   await assert.rejects(f.flows.create(task + 'a', 'standard', workspace), /workflow_task_too_large/)
+})
+
+test('JEV-selected coordinator sends only the explicit brief and awaits a separate launch', async () => {
+  const f = fixture({ live: true, execution: true })
+  const task = 'SYNTHETIC-LOCAL-ONLY ' + 'я'.repeat(2500)
+  const routingBrief = 'Synthetic coordination across several components.'
+  const w = await f.flows.create(task, undefined, workspace, routingBrief)
+  assert.equal(w.coordinator.purpose, 'coordinator')
+  assert.equal(w.coordinator.reason, 'selected')
+  assert.equal(w.coordinator.state, 'shadow')
+  assert.equal(f.traffic.length, 1)
+  assert.equal(JSON.parse(f.traffic[0]!).state.task_description, routingBrief)
+  assert.ok(!f.traffic[0]!.includes('SYNTHETIC-LOCAL-ONLY'))
+  assert.ok(Buffer.byteLength(w.coordinatorTask) > 4096)
+  assert.equal(f.calls.length, 0)
+  const launched = await f.flows.launchCoordinator(w.id, workspace)
+  assert.equal(launched.coordinator.state, 'submitted')
+  assert.equal(f.calls[0]?.[1], w.coordinatorTask)
+  assert.equal(f.traffic.length, 1)
+})
+
+test('invalid coordinator routing input fails before creating the analysis artifact', async () => {
+  const f = fixture({ live: true })
+  let artifacts = 0
+  f.artifacts.create = async () => { artifacts++; return '/synthetic-private/analysis.json' }
+  await assert.rejects(f.flows.create('Synthetic task', undefined, workspace), /invalid_coordinator_plan/)
+  await assert.rejects(f.flows.create('Synthetic task', 'standard', workspace, 'Synthetic brief'), /invalid_coordinator_plan/)
+  await assert.rejects(f.flows.create('Synthetic task', undefined, workspace, 'я'.repeat(2049)), /invalid_task/)
+  assert.equal(artifacts, 0)
+  assert.equal(f.traffic.length, 0)
+})
+
+test('coordinator refresh rejects analysis from the previous plan and accepts the new binding', async () => {
+  const f = fixture({ execution: true }), w = await f.flows.create('Synthetic task', 'standard', workspace)
+  assert.ok(w.coordinatorTask.includes(w.coordinator.id))
+  const refreshed = await f.flows.refreshCoordinator(w.id, workspace)
+  assert.notEqual(refreshed.coordinator.id, w.coordinator.id)
+  f.setRaw({ ...analysis(), coordinatorPlanId: w.coordinator.id })
+  assert.deepEqual((await f.flows.inspect(w.id, workspace)).issue, { path: 'coordinatorPlanId', rule: 'format' })
+  await assert.rejects(f.flows.read(w.id, workspace), /invalid_analysis/)
+  f.setRaw({ ...analysis(), coordinatorPlanId: refreshed.coordinator.id })
+  assert.ok((await f.flows.read(w.id, workspace)).analysis)
+})
+
+test('missing entries, corrupt pointers and malformed stored plans have distinct safe errors', async () => {
+  const f = fixture({ execution: true }), id = randomUUID()
+  assert.equal(await f.flows.current(workspace), null)
+  await assert.rejects(f.flows.get(id, workspace), /workflow_not_found/)
+  await assert.rejects(f.engine.launch(id, 'Synthetic', workspace), /plan_not_found/)
+  const w = await f.flows.create('Synthetic', 'standard', workspace)
+  const pointer = [...f.data.keys()].find(k => k.startsWith('workflowCurrent:'))!
+  f.data.set(pointer, false)
+  await assert.rejects(f.flows.current(workspace), /invalid_workflow/)
+  f.data.set('plan:' + w.coordinator.id, { ...w.coordinator, evidence: { verified: 'true' } })
+  await assert.rejects(f.flows.launchCoordinator(w.id, workspace), /invalid_plan/)
+  await assert.rejects(f.engine.launch(w.coordinator.id, w.coordinatorTask, workspace), /invalid_plan/)
+  assert.equal(f.calls.length, 0)
+})
+
+test('legacy unbound analysis, optional launch fields and receipt-free submitted plans load', async () => {
+  const f = fixture({ execution: true }), w = await f.flows.create('Synthetic', 'standard', workspace)
+  delete w.analysisBinding
+  w.coordinatorTask = coordinatorPrompt(w.task, w.artifact)
+  w.coordinator.taskHash = digest(w.coordinatorTask)
+  delete w.coordinator.purpose
+  delete w.coordinator.keyRevision
+  await f.store.set('plan:' + w.coordinator.id, w.coordinator)
+  await f.store.set('workflow:' + w.id, w)
+  f.setRaw(analysis())
+  await f.flows.read(w.id, workspace)
+  await f.flows.approve(w.id, workspace)
+  await f.flows.route(w.id, 'implement', workspace)
+  const submitted = await f.flows.launch(w.id, 'implement', workspace)
+  const run = submitted.runs.implement!
+  delete run.startedAt
+  delete run.plan!.dispatch
+  await f.store.set('plan:' + run.plan!.id, run.plan)
+  await f.store.set('workflow:' + w.id, submitted)
+  assert.equal((await f.flows.current(workspace))?.runs.implement?.state, 'submitted')
+})
+
+test('manual launch rejects contradictions anywhere in the approved graph before sending', async () => {
+  const f = fixture({ execution: true }), id = await prepared(f)
+  const w = await f.flows.route(id, 'implement', workspace)
+  for (const mutate of [
+    (v: typeof w) => { v.approvedHash = '1'.repeat(64) },
+    (v: typeof w) => { delete v.analysisBinding },
+    (v: typeof w) => { delete v.runs.verify },
+    (v: typeof w) => { v.runs.verify!.state = 'completed' },
+    (v: typeof w) => { v.runs.implement!.plan!.evidence.verified = false },
+    (v: typeof w) => { v.runs.implement!.plan!.dispatch = { kind: 'terminal', handle: 'invalid handle' } },
+    (v: typeof w) => { v.runs.implement!.result = { token: randomUUID(), path: '/wrong/result.json' } },
+    (v: typeof w) => { v.runs.verify!.outcome = { status: 'completed', summary: 'Synthetic', checks: [], questions: [] } }
+  ]) {
+    const changed = structuredClone(w)
+    mutate(changed)
+    await f.store.set('workflow:' + id, changed)
+    await assert.rejects(f.flows.launch(id, 'implement', workspace), /invalid_workflow|invalid_plan/)
+  }
+  assert.equal(f.calls.length, 0)
 })

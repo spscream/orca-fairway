@@ -1,5 +1,17 @@
 import type { Message } from './en.ts'
 export default {
+  "Run to result": "결과까지 실행",
+  "Preparing the plan automatically.": "계획을 자동으로 준비하고 있습니다.",
+  "The automatic correction limit was reached.": "자동 수정 한도에 도달했습니다.",
+  "Run to result authorizes the coordinator and up to 8 steps, with up to 2 correction cycles. JEV and agent usage are billed separately.": "실행을 시작하면 코디네이터 및 최대 8단계를 승인하며, 최대 2회의 수정 주기가 포함됩니다. JEV와 에이전트 사용료는 별도로 청구됩니다.",
+  "A saved workflow or plan record is missing.": "저장된 워크플로 또는 계획 기록이 없습니다.",
+  "The saved workflow or plan contains inconsistent data.": "저장된 워크플로 또는 계획의 데이터가 일치하지 않습니다.",
+  "Current section": "현재 섹션",
+  "Export diagnostics": "진단 내보내기",
+  "Text is too long. Shorten it to continue.": "텍스트가 너무 깁니다. 줄인 후 계속하세요.",
+  "Text is close to the length limit.": "텍스트 길이가 한도에 가깝습니다.",
+  "Let JEV choose": "JEV로 선택",
+  "Preparing with JEV may use one paid decision. Only this brief is sent to OpenRouter.": "JEV로 준비하면 유료 결정 요청이 발생할 수 있습니다. 이 요약만 OpenRouter에 전송됩니다.",
   "Statistics": "통계",
   "JEV usage": "JEV 사용량",
   "Unable to load status.": "상태를 불러오지 못했습니다.",

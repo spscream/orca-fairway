@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseJson } from './core/json.ts'
 import { withDiskLedger } from './core/ledger-store.ts'
+import { diagnosticExport } from './core/diagnostics.ts'
 import { Engine } from './core/engine.ts'
 import { NativeRuntime } from './core/runtime.ts'
 import { DEFAULT_CONFIG, record, requireThat, RouterError, validateConfig } from './core/config.ts'
@@ -13,7 +14,8 @@ import { Workflows, type Artifacts } from './core/workflow.ts'
 import { PrivateArtifacts } from './core/artifacts.ts'
 import { Automatic } from './core/automatic.ts'
 import { Balances, type BalanceTransport } from './core/balance.ts'
-import type { Plan, Runtime, Store, Workspace, Transport } from './core/types.ts'
+import { savedPlan } from './core/saved-plan.ts'
+import type { Runtime, Store, Workspace, Transport } from './core/types.ts'
 import type { Status } from './protocol.ts'
 let stop: (() => Promise<void>) | null = null
 export async function deactivate(): Promise<void> { await stop?.(); stop = null }
@@ -41,6 +43,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     await automatic.recover()
     const balances = new Balances(() => orca.secrets.get('openrouter'), balanceRequest)
     let bridge: Awaited<ReturnType<typeof startBridge>> | null = null
+    let bridgeChange: Promise<unknown> = Promise.resolve()
     const settingsChanged = orca.settings.onDidChange(() => { engine.cancelAll(); void automatic.pause('settings_changed').catch(() => {}) })
     let ticking = false, disposed = false
     const timer = setInterval(() => {
@@ -54,7 +57,7 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       })().catch(() => automatic.pause('operation_failed').catch(() => {})).finally(() => { ticking = false })
     }, 5000)
     timer.unref()
-    stop = async () => { disposed = true; clearInterval(timer); await automatic.pause('interrupted').catch(() => {}); settingsChanged.dispose(); engine.cancelAll(); balances.invalidate(); await bridge?.close(); bridge = null }
+    stop = async () => { disposed = true; clearInterval(timer); await automatic.pause('interrupted').catch(() => {}); settingsChanged.dispose(); engine.cancelAll(); balances.invalidate(); await bridgeChange; await bridge?.close(); bridge = null }
     const workspace = async (): Promise<Workspace | null> => {
       const context = await orca.host.call('workspace.readContext')
       if (!context?.workspaceId) return null
@@ -67,7 +70,8 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
     }
     const status = async (): Promise<Status> => {
       const w = await workspace()
-      const config = await engine.config(), lastPlan = (await store.get('lastPlan') as Plan | null) ?? null
+      const config = await engine.config(), stored = await store.get('lastPlan')
+      const lastPlan = stored == null ? null : savedPlan(stored)
       return { config, ledger: await engine.ledger(), keyPresent: !!await orca.secrets.get('openrouter'), workspace: w?.id ?? null, lastPlan: lastPlan && await engine.isCurrent(lastPlan, config) ? lastPlan : null, bridgePath: bridge?.path ?? null, workflow: w ? await workflows.current(w) : null, balance: balances.cached() }
     }
     // Errors expose only fixed codes, never exception strings, task text or child output.
@@ -83,9 +87,10 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       const w = await workspace(); requireThat(w, 'local_workspace_required')
       return workflows.inspect(id, w)
     }))
-    orca.panels.handle('fairway.workflow.create', safe(async ({ task, profileId }) => {
+    orca.panels.handle('fairway.workflow.create', safe(async ({ task, profileId, routingBrief, endToEnd }) => {
       const w = await workspace(); requireThat(w, 'local_workspace_required')
-      return workflows.create(task, profileId, w)
+      requireThat(endToEnd === undefined || endToEnd === true, 'invalid_request')
+      return endToEnd ? automatic.startFromTask(task, profileId, w, routingBrief) : workflows.create(task, profileId, w, routingBrief)
     }))
     orca.panels.handle('fairway.workflow.action', safe(async ({ id, action, stepId, review }) => {
       const w = await workspace(); requireThat(w, 'local_workspace_required')
@@ -103,7 +108,10 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       if (action === 'review') return workflows.review(id, stepId, review ?? '', w)
       throw new RouterError('invalid_workflow')
     }))
-    orca.panels.handle('fairway.history', safe(async () => ({ json: JSON.stringify((await engine.history()).slice(-20), null, 2) })))
+    orca.panels.handle('fairway.history', safe(async () => {
+      const history = await engine.history()
+      return { json: JSON.stringify(history.slice(-20), null, 2), exportJson: diagnosticExport(history) }
+    }))
     orca.panels.handle('fairway.config', safe(async ({ config }) => {
       requireThat(typeof config === 'string' && Buffer.byteLength(config) <= 16_384, 'invalid_config')
       await engine.saveConfig(parseJson(config)); await store.set('lastPlan', null); return status()
@@ -125,15 +133,20 @@ export function createWorker(runtime: Runtime = new NativeRuntime(), transport?:
       const w = await workspace(); requireThat(w, 'local_workspace_required')
       const plan = await engine.launch(id, task, w); await store.set('lastPlan', plan); return plan
     }))
-    orca.panels.handle('fairway.bridge', safe(async ({ enabled }) => {
+    orca.panels.handle('fairway.bridge', safe(({ enabled }) => {
       requireThat(typeof enabled === 'boolean', 'invalid_request')
-      if (!enabled) { await bridge?.close(); bridge = null; return { path: null } }
-      if (!bridge) bridge = await startBridge(join(homedir(), '.config', 'fairway-for-orca'), async (task, session) => {
-        const plan = await engine.plan(task, 'pi', { id: 'pi:' + session, path: '/', host: 'local' })
-        requireThat(plan.evidence.verified && plan.state === 'shadow', 'profile_unverified')
-        return { profile: { model: plan.profile.model, effort: plan.profile.effort }, reason: plan.reason }
+      const change = bridgeChange.then(async () => {
+        requireThat(!disposed, 'bridge_unavailable')
+        if (!enabled) { await bridge?.close(); bridge = null; return { path: null } }
+        if (!bridge) bridge = await startBridge(join(homedir(), '.config', 'fairway-for-orca'), async (task, session, signal) => {
+          const plan = await engine.plan(task, 'pi', { id: 'pi:' + session, path: '/', host: 'local' }, undefined, signal)
+          requireThat(plan.evidence.verified && plan.state === 'shadow', 'profile_unverified')
+          return { profile: { model: plan.profile.model, effort: plan.profile.effort }, reason: plan.reason }
+        })
+        return { path: bridge.path }
       })
-      return { path: bridge.path }
+      bridgeChange = change.catch(() => {})
+      return change
     }))
     orca.commands.register('fairway.status', async () => {
       const c = await engine.config(), l = await engine.ledger()

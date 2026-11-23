@@ -1,7 +1,7 @@
 import { assert, mockHost, mountWorker, test } from 'orca/testing'
 import { createWorker } from './worker.ts'
 import { DEFAULT_CONFIG } from './core/config.ts'
-import type { Runtime } from './core/types.ts'
+import type { Runtime, Transport } from './core/types.ts'
 import type { OrcaWorkerApi } from 'orca/worker'
 import { randomUUID } from 'node:crypto'
 test('worker status never starts a CLI or network operation', async () => {
@@ -13,6 +13,75 @@ test('worker status never starts a CLI or network operation', async () => {
   assert.equal(status.config.execution, false); assert.equal(status.config.live, false)
   assert.equal(launches, 0); assert.equal(verifications, 0)
   assert.deepEqual(worker.logs, []); assert.deepEqual(worker.refusals, []); await worker.deactivate()
+})
+test('diagnostic history survives worker restart, repairs a damaged entry and stays bounded', async () => {
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { throw new Error('must not launch') } }
+  const transport: Transport = async (_url, { body }) => body ? { raw: 'new raw service response' } : {
+    data: { id: 'typesafe/jev-1.14', context_length: 262144, pricing: { prompt: '0.000000042', completion: '0' } },
+  }
+  const flowId = randomUUID(), requestId = randomUUID(), nextId = randomUUID()
+  const legacy = Array.from({ length: 198 }, (_, at) => ({ at, state: 'planning' }))
+  const left = { at: 198, state: 'automatic_paused', flowId, reason: 'checks_failed', stage: 'report' }
+  const right = { at: 200, state: 'shadow', id: randomUUID(), reason: 'offline' }
+  const host = mockHost({
+    secrets: { openrouter: 'new synthetic credential' },
+    settings: { live: true },
+    storage: { nativeSettingsMigrated: true, audit: [...legacy, { ...left, stepId: 'private-step-name', task: 'private task text' },
+      { at: 'damaged', state: 'shadow', response: 'raw service response' }, { ...right, key: 'private credential' }] },
+    results: {
+      'workspace.readContext': { workspaceId: 'synthetic', branch: 'main', displayName: 'Synthetic', terminals: [] },
+      'workspace.list': { workspaces: [{ id: 'synthetic', kind: 'folder', name: 'Synthetic', path: '/synthetic-project', branch: null, hostId: null }], truncated: false },
+    },
+  })
+  let worker = await mountWorker({ default: createWorker(runtime, transport) }, { host })
+  try {
+    const view = async () => {
+      const { json, exportJson } = await worker.request('fairway.history') as { json: string; exportJson: string }
+      const exported = JSON.parse(exportJson)
+      assert.equal(exported.version, 1)
+      assert.deepEqual(JSON.parse(json), exported.events.slice(-20))
+      return exported.events
+    }
+    assert.deepEqual(await view(), [...legacy, left, right])
+    await worker.request('fairway.plan', { id: requestId, task: 'new private task text', agent: 'codex' })
+    const saved = await view()
+    assert.equal(saved.length, 200)
+    assert.deepEqual(saved.slice(0, -2), [...legacy.slice(2), left, right])
+    const newEvents = saved.slice(-2)
+    assert.ok(newEvents.every(({ at }: { at: number }) => at > 200))
+    assert.deepEqual(newEvents.map(({ at, ...event }: { at: number }) => event), [
+      { state: 'planning', id: requestId },
+      { state: 'shadow', id: requestId, reason: 'invalid_response' },
+    ])
+    assert.deepEqual(host.data().storage.audit, saved)
+    await worker.deactivate()
+    worker = await mountWorker({ default: createWorker(runtime, transport) }, { host })
+    assert.deepEqual(await view(), saved)
+    await worker.request('fairway.plan', { id: nextId, task: 'second private task text', agent: 'codex' })
+    const updated = await view()
+    assert.equal(updated.length, 200)
+    assert.deepEqual(updated.slice(0, -2), saved.slice(2))
+    assert.equal(updated.at(-1).id, nextId)
+    assert.deepEqual(host.data().storage.audit, updated)
+  } finally { await worker.deactivate() }
+})
+test('a non-array diagnostic journal can be replaced by new events', async () => {
+  const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { throw new Error('must not launch') } }
+  const host = mockHost({ storage: { audit: 'damaged journal' }, results: {
+    'workspace.readContext': { workspaceId: 'synthetic', branch: 'main', displayName: 'Synthetic', terminals: [] },
+    'workspace.list': { workspaces: [{ id: 'synthetic', kind: 'folder', name: 'Synthetic', path: '/synthetic-project', branch: null, hostId: null }], truncated: false },
+  } })
+  const worker = await mountWorker({ default: createWorker(runtime) }, { host })
+  try {
+    const empty = await worker.request('fairway.history') as { json: string }
+    assert.deepEqual(JSON.parse(empty.json), [])
+    const id = randomUUID()
+    await worker.request('fairway.plan', { id, task: 'private task text', agent: 'codex' })
+    const saved = await worker.request('fairway.history') as { exportJson: string }
+    const { events } = JSON.parse(saved.exportJson)
+    assert.deepEqual(events.map((event: { id: string; state: string }) => [event.id, event.state]), [[id, 'planning'], [id, 'shadow']])
+    assert.deepEqual(host.data().storage.audit, events)
+  } finally { await worker.deactivate() }
 })
 test('local group folders with null host are supported; remote workspaces are refused', async () => {
   const runtime: Runtime = { verify: async () => ({ verified: false, source: 'synthetic' }), launch: async () => { throw new Error('must not launch') } }
@@ -66,13 +135,14 @@ test('turning execution off in native settings blocks a launch waiting on verifi
 test('workflow handlers connect synthetic analysis, cross-agent routing and guarded dispatch', async () => {
   let launches = 0
   const runtime: Runtime = { verify: async () => ({ verified: true, source: 'synthetic' }), launch: async () => { launches++; return { code: 0, stdout: '{"ok":true,"result":{"outcome":{"kind":"structured","handle":"orca_session_id:synthetic"},"prompt":{"outcome":"journaled"}}}' } } }
-  const raw = JSON.stringify({ version: 1, summary: 'Synthetic', assumptions: [], questions: [], sources: [], steps: [{ id: 'check', title: 'Synthetic check', instructions: 'Inspect synthetic result', acceptance: 'Synthetic check passes', context: '', routingBrief: 'Small synthetic check', allowedAgents: ['codex'], dependsOn: [] }] })
+  let raw = JSON.stringify({ version: 1, summary: 'Synthetic', assumptions: [], questions: [], sources: [], steps: [{ id: 'check', title: 'Synthetic check', instructions: 'Inspect synthetic result', acceptance: 'Synthetic check passes', context: '', routingBrief: 'Small synthetic check', allowedAgents: ['codex'], dependsOn: [] }] })
   const host = mockHost({ results: {
     'workspace.readContext': { workspaceId: 'synthetic', branch: 'main', displayName: 'Synthetic', terminals: [] },
     'workspace.list': { workspaces: [{ id: 'synthetic', kind: 'folder', name: 'Synthetic', path: '/synthetic-project', branch: null, hostId: 'local' }], truncated: false }
   } })
   const worker = await mountWorker({ default: createWorker(runtime, undefined, { create: async () => '/synthetic-private/analysis.json', read: async () => raw }) }, { host })
   const w: any = await worker.request('fairway.workflow.create', { task: 'Synthetic', profileId: 'standard' })
+  raw = JSON.stringify({ ...JSON.parse(raw), coordinatorPlanId: w.coordinator.id })
   await worker.request('fairway.workflow.action', { id: w.id, action: 'read' })
   await worker.request('fairway.workflow.action', { id: w.id, action: 'approve' })
   const planned: any = await worker.request('fairway.workflow.action', { id: w.id, action: 'route', stepId: 'check' })

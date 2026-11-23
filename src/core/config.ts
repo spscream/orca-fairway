@@ -1,4 +1,4 @@
-import { COORDINATOR_TASK_BYTES, COORDINATOR_PROMPT_BYTES, WORKFLOW_PROMPT_BYTES } from './limits.ts'
+import { COORDINATOR_TASK_BYTES, COORDINATOR_PROMPT_BYTES, WORKFLOW_PROMPT_BYTES, TASK_BYTES } from './limits.ts'
 import type { Config, Profile } from './types.ts'
 import { PROFILE_LEVELS } from './profile-level.ts'
 export class RouterError extends Error {
@@ -43,8 +43,8 @@ export function validateConfig(x: unknown): Config {
   requireThat(Number.isSafeInteger(x.maxCalls) && (x.maxCalls as number) >= 0, 'invalid_call_limit')
   return { ...x, profiles } as unknown as Config
 }
-export function validateTask(x: unknown): asserts x is string {
-  requireThat(typeof x === 'string' && x.trim().length > 0 && Buffer.byteLength(x) <= 4096 && !x.includes('\0'), 'invalid_task')
+export function validateTask(x: unknown, limit = TASK_BYTES): asserts x is string {
+  requireThat(typeof x === 'string' && x.trim().length > 0 && Buffer.byteLength(x) <= limit && !x.includes('\0'), 'invalid_task')
 }
 export function validateCoordinatorTask(x: unknown): asserts x is string {
   requireThat(typeof x === 'string' && x.trim().length > 0 && !x.includes('\0'), 'invalid_task')

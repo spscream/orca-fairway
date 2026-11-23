@@ -1,5 +1,17 @@
 import type { Message } from './en.ts'
 export default {
+  "Run to result": "Sonuca kadar çalıştır",
+  "Preparing the plan automatically.": "Plan otomatik hazırlanıyor.",
+  "The automatic correction limit was reached.": "Otomatik düzeltme sınırına ulaşıldı.",
+  "Run to result authorizes the coordinator and up to 8 steps, with up to 2 correction cycles. JEV and agent usage are billed separately.": "Başlatma, koordinatöre ve en fazla 8 adıma, en fazla 2 düzeltme döngüsüyle izin verir. JEV ve ajan kullanımı ayrı ücretlendirilir.",
+  "A saved workflow or plan record is missing.": "Kaydedilmiş bir iş akışı veya plan kaydı eksik.",
+  "The saved workflow or plan contains inconsistent data.": "Kaydedilmiş iş akışı veya plan tutarsız veriler içeriyor.",
+  "Current section": "Geçerli bölüm",
+  "Export diagnostics": "Tanı bilgilerini dışa aktar",
+  "Text is too long. Shorten it to continue.": "Metin çok uzun. Devam etmek için kısaltın.",
+  "Text is close to the length limit.": "Metin uzunluk sınırına yaklaşıyor.",
+  "Let JEV choose": "JEV seçsin",
+  "Preparing with JEV may use one paid decision. Only this brief is sent to OpenRouter.": "JEV ile hazırlık bir ücretli karar kullanabilir. OpenRouter’a yalnızca bu kısa açıklama gönderilir.",
   "Statistics": "İstatistikler",
   "JEV usage": "JEV kullanımı",
   "Unable to load status.": "Durum yüklenemedi.",

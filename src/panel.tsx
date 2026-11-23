@@ -1,28 +1,46 @@
+import { TASK_BYTES } from './core/limits.ts'
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
-import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, IconButton, Image, Input, KeyValue, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Text, Textarea, settings, type PanelContext } from 'orca'
+import { atom, Badge, Button, Callout, Card, Code, Collapsible, Heading, IconButton, Image, Input, KeyValue, files, plugin, read, RelativeTime, Row, Select, set, Spinner, Stack, Switch, Text, Textarea, settings, type PanelContext } from 'orca'
 import type { Agent, Config, Effort, Plan, Profile } from './core/types.ts'
 import { PROFILE_LEVELS } from './core/profile-level.ts'
-import { DEFAULT_CONFIG } from './core/config.ts'
+import { DEFAULT_CONFIG, record } from './core/config.ts'
+import { diagnosticExport, diagnosticHistory, type DiagnosticEvent } from './core/diagnostics.ts'
 import { budgetFromText } from './core/preferences.ts'
 import type { Status } from './protocol.ts'
 import { workflowPanel, clearWorkflowDrafts, reconcileWorkflow } from './workflow-panel.tsx'
 import type { BalanceItem } from './core/balance.ts'
-import { bytes, displayState } from './ui-presentation.ts'
+import { bytes, displayState, textLimitWarning } from './ui-presentation.ts'
 import { knownErrorCode } from './core/ui-errors.ts'
 const state = atom<Status | null>(null)
-const loadingStatus = atom(false), statusError = atom(false)
+const loadingStatus = atom(false), statusError = atom<Message | null>(null)
 const launching = atom(false)
 const task = atom('taskDraft', '', { persist: 'workspace' }), agent = atom<Agent>('agentDraft', 'codex', { persist: 'workspace' }), plan = atom<Plan | null>(null)
-const journal = atom<string | null>(null), journalLoading = atom(false), journalError = atom(false)
+const diagnostics = atom<string | null>(null)
+const journal = atom<DiagnosticEvent[]>([]), journalLoading = atom(false), journalError = atom(false)
 const boundPlan = atom<string | null>(null), uncertain = atom<string | null>('uncertainDispatch', null, { persist: 'workspace' })
 const keyBusy = atom(false), keySaved = atom(false), balanceError = atom(false)
 const balanceLoading = atom(false), balanceEpoch = atom(0)
 const draft = atom<Config>('configDraft', DEFAULT_CONFIG, { persist: 'workspace' }), budget = atom('budgetDraft', '0.1', { persist: 'workspace' }), calls = atom('callsDraft', '5', { persist: 'workspace' }), selectedProfile = atom('profileDraft', 0, { persist: 'workspace' }), dirty = atom('configDirty', false, { persist: 'workspace' }), saving = atom(false)
 const apiKey = atom(''), busy = atom(false), error = atom<Message | ''>(''), activeId = atom<string | null>(null)
+async function saveDiagnostics(): Promise<void> {
+  const data = read(diagnostics)
+  if (!data) return
+  try {
+    await files.saveAs({ suggestedName: 'fairway-diagnostics.json', mimeType: 'application/json', data })
+  } catch (error) { showError(error) }
+}
 const tab = atom('tab', 'task', { persist: 'plugin' })
+const savedStateMessages: Record<string, Message> = {
+  workflow_not_found: 'A saved workflow or plan record is missing.',
+  plan_not_found: 'A saved workflow or plan record is missing.',
+  invalid_plan: 'The saved workflow or plan contains inconsistent data.',
+  invalid_workflow: 'The saved workflow or plan contains inconsistent data.',
+  invalid_automatic_state: 'The saved workflow or plan contains inconsistent data.'
+}
 function showError(e: unknown): void {
   const known: Record<string, Message> = {
+    ...savedStateMessages,
     workflow_prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
     automatic_budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
     automatic_workflow_active: 'Finish the active plan or confirm its executor has ended before starting another plan.', automatic_running: 'Pause automatic execution before using manual controls.',
@@ -30,7 +48,7 @@ function showError(e: unknown): void {
     profile_unverified: 'The model and effort pair is unverified.', plan_changed: 'The task or settings changed. Select a profile again.',
     result_missing: 'The executor report is missing or invalid.', invalid_step_result: 'The executor report is missing or invalid.',
     plan_not_launchable: 'The decision was cancelled, expired, or already used.', plan_already_consumed: 'This decision cannot be dispatched again.',
-    no_profiles_for_agent: 'Add profiles for the selected agent in Settings.', invalid_config: 'Check the profile settings.', invalid_task: 'The description must contain 1–4096 UTF-8 bytes.',
+    no_profiles_for_agent: 'Add profiles for the selected agent in Settings.', invalid_config: 'Check the profile settings.', invalid_task: 'Text is too long. Shorten it to continue.',
     invalid_budget: 'Budget must be nonnegative, with up to 6 decimal places.', invalid_call_limit: 'The attempt limit must be a nonnegative integer.',
     invalid_profile_id: 'ID: start with a lowercase ASCII letter; use letters, digits, hyphens or underscores, up to 40 characters.',
     invalid_effort: 'Select a supported effort.', invalid_model: 'Enter an exact model ID without spaces or commands.', invalid_description: 'The profile description must contain 1–400 characters.',
@@ -85,13 +103,26 @@ function removeProfile(): void {
 async function refresh(): Promise<void> {
   if (read(loadingStatus)) return
   set(loadingStatus, true)
-  try { apply(await plugin.request('fairway.status')); set(statusError, false) }
-  catch { set(statusError, true) }
+  try { apply(await plugin.request('fairway.status')); set(statusError, null) }
+  catch (e) {
+    const code = knownErrorCode(e, new Set(Object.keys(savedStateMessages)))
+    set(statusError, code ? savedStateMessages[code]! : 'Unable to load status.')
+  }
   finally { set(loadingStatus, false) }
 }
 async function loadHistory(): Promise<void> {
   set(journalLoading, true); set(journalError, false)
-  try { set(journal, (await plugin.request('fairway.history')).json) } catch { set(journalError, true) } finally { set(journalLoading, false) }
+  try {
+    const result = await plugin.request('fairway.history')
+    const entries: unknown = JSON.parse(result.json)
+    const exported: unknown = result.exportJson ? JSON.parse(result.exportJson) : null
+    set(journal, diagnosticHistory(entries).slice(-20))
+    set(diagnostics, record(exported) && exported.version === 1 && Array.isArray(exported.events) ? diagnosticExport(exported.events) : null)
+  } catch {
+    set(journal, [])
+    set(journalError, true)
+    set(diagnostics, null)
+  } finally { set(journalLoading, false) }
 }
 export function setup(ctx: PanelContext): void {
   const timer = setInterval(() => { if (read(state)?.workflow?.automatic?.state === 'running') void refresh() }, 2500)
@@ -101,7 +132,7 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push({ dispose: () => clearInterval(timer) })
  ctx.subscriptions.push(settings.onDidChange(() => { void refresh() })); void refresh(); if (read(tab) === 'history') void loadHistory() }
 async function route(): Promise<void> {
-  if (read(uncertain) || bytes(read(task)) > 4096) return
+  if (read(uncertain) || bytes(read(task)) > TASK_BYTES) return
   const id = Array.from({ length: 36 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
   set(activeId, id); set(busy, true); set(error, ''); set(plan, null)
   try { const p = await plugin.request('fairway.plan', { id, task: read(task), agent: read(agent) }, { timeoutMs: 30_000 }); if (read(activeId) === id) { set(plan, p); set(boundPlan, p.id); set(state, await plugin.request('fairway.status')) } }
@@ -113,7 +144,7 @@ async function cancel(): Promise<void> {
   if (id) try { await plugin.request('fairway.cancel', { id }) } catch (e) { showError(e) }
 }
 async function launch(): Promise<void> {
-  const p = read(plan); if (!p || read(uncertain) || read(boundPlan) !== p.id || !read(task).trim() || bytes(read(task)) > 4096) return
+  const p = read(plan); if (!p || read(uncertain) || read(boundPlan) !== p.id || !read(task).trim() || bytes(read(task)) > TASK_BYTES) return
   set(busy, true); set(launching, true); set(activeId, null); set(error, '')
   set(uncertain, p.id)
   try { set(plan, await plugin.request('fairway.launch', { id: p.id, task: read(task) }, { timeoutMs: 45_000 })); set(uncertain, null) }
@@ -192,6 +223,7 @@ function settingsForm() {
 }
 export default function Panel() {
   const s = read(state), p = read(plan), waiting = read(busy), errorMessage = read(error)
+  const taskWarning = textLimitWarning(read(task), TASK_BYTES)
   const section = read(tab), account = s?.balance?.account
   const compactBalance = account?.state === 'available' && account.remainingUsd !== null
     ? '$' + account.remainingUsd.toFixed(2) : '—'
@@ -199,7 +231,7 @@ export default function Panel() {
     <Row justify="between" align="center" wrap><Row gap="sm" align="center"><Image src="assets/fairway-icon.png" alt="Fairway" size="xs" rounded /><Heading>Fairway</Heading></Row><Badge tone={s?.config.execution ? 'warning' : 'neutral'}>{!s ? (read(statusError) ? '—' : t("Working")) : s.config.execution ? t("Explicit execution") : t("Shadow mode")}</Badge></Row>
     <Text muted>{t("Task → model and effort → native Orca dispatch.")}</Text>
     {errorMessage ? <Callout tone="danger" title={t("Operation stopped")}><Text>{t(errorMessage)}</Text></Callout> : null}
-    {read(statusError) ? <Callout tone="warning" title={t('Unable to load status.')}><Button disabled={read(loadingStatus)} onPress={refresh}>{t('Refresh status')}</Button></Callout> : null}
+    {read(statusError) ? <Callout tone="warning" title={t(read(statusError)!)}><Button disabled={read(loadingStatus)} onPress={refresh}>{t('Refresh status')}</Button></Callout> : null}
     {!s && read(loadingStatus) ? <Spinner label={t("Working")} /> : null}
     {read(uncertain) && !waiting ? <Callout tone="warning" title={t("The dispatch outcome is unknown. Inspect Orca before starting anything again.")}><Button variant="ghost" onPress={refresh}>{t("Refresh status")}</Button></Callout> : null}
     <Row gap="xs" align="center" wrap>
@@ -212,7 +244,7 @@ export default function Panel() {
         { value: 'history', label: t('Audit log'), icon: 'book' },
       ] as const).map(({ value, label, icon }) => <IconButton
         key={value} icon={icon}
-        label={label} tooltip={label} size="sm" variant={section === value ? 'solid' : 'ghost'}
+        label={section === value ? label + ' · ' + t('Current section') : label} tooltip={label} size="sm" variant={section === value ? 'solid' : 'ghost'}
         onPress={() => { if (section === value) return; set(tab, value); if (value === 'history') void loadHistory() }}
       />)}
     </Row>
@@ -227,9 +259,9 @@ export default function Panel() {
           {s && !s.workspace ? <Text tone="warning">{t("Open a local Orca workspace.")}</Text> : null}
           <Text muted size="xs">{t("Drafts are saved locally for this workspace. The key field is never saved.")}</Text>
           <Select label={t("Agent")} disabled={read(launching)} value={read(agent)} options={[{ value: 'codex', label: 'Codex' }, { value: 'pi', label: 'Pi' }, { value: 'cursor', label: 'Cursor Agent' }]} onChange={v => { void cancel(); set(agent, v as Agent) }} />
-          <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={4096} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
-          <Text tone={bytes(read(task)) > 4096 ? "warning" : "neutral"}>{t('UTF-8 bytes')}: {bytes(read(task))} / 4096</Text>
-          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !!read(uncertain) || !read(task).trim() || bytes(read(task)) > 4096 || !s?.workspace} onPress={route}>{t("Select profile")}</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>{t("Cancel selection")}</Button></Row>
+          <Textarea label={t("Task description")} disabled={read(launching)} value={read(task)} rows={6} maxLength={TASK_BYTES} placeholder={t("A short task description without secrets or source code")} onChange={v => { void cancel(); set(task, v) }} />
+          {taskWarning ? <Text tone="warning" size="sm">{t(taskWarning)}</Text> : null}
+          <Row gap="sm" wrap><Button icon="branch" disabled={waiting || !!read(uncertain) || !read(task).trim() || bytes(read(task)) > TASK_BYTES || !s?.workspace} onPress={route}>{t("Select profile")}</Button><Button variant="ghost" disabled={read(launching) || (!waiting && (!p || p.state !== 'shadow'))} onPress={cancel}>{t("Cancel selection")}</Button></Row>
           {waiting ? <Spinner label={t("Working")} /> : null}
           {p ? <Card title={p.profile.model} description={`${p.profile.agent} · ${p.profile.effort ?? t("effort encoded in the Cursor ID")}`}>
             <Stack gap="sm">
@@ -271,7 +303,19 @@ export default function Panel() {
           <Text muted>{t("See docs/pi.md for setup and pair verification. This is not a generation proxy or a switch for the native Orca model list.")}</Text>
         </Stack>
        : null}
-      {read(tab) === 'history' ? <Stack gap="sm"><Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text>{read(journalLoading) ? <Spinner label={t("Working")} /> : read(journalError) ? <Text tone="warning">{t("Unable to load events. Try again.")}</Text> : read(journal) === '[]' ? <Text muted>{t("No events yet")}</Text> : <Stack gap="sm">{(() => { try { return (JSON.parse(read(journal) || '[]') as Record<string, unknown>[]).map((event, i) => <Text key={String(i)}>{typeof event.at === 'number' ? new Date(event.at).toLocaleString() : '—'} · {displayState(String(event.state ?? ''))} · {String(event.profile ?? event.stepId ?? event.agent ?? '—')}</Text>) } catch { return <Text>{t("Unable to load events. Try again.")}</Text> } })()}<Collapsible title={t("Details")}><Code block>{read(journal) || '[]'}</Code></Collapsible></Stack>}<Button variant="ghost" disabled={read(journalLoading)} onPress={loadHistory}>{t("Refresh status")}</Button></Stack> : null}
+      {read(tab) === 'history' ? <Stack gap="sm">
+        <Text muted>{t("Last 20 events. Task text, keys, and API responses are never recorded here.")}</Text>
+        {read(journalLoading) ? <Spinner label={t("Working")} /> :
+          read(journalError) ? <Text tone="warning">{t("Unable to load events. Try again.")}</Text> :
+          read(journal).length === 0 ? <Text muted>{t("No events yet")}</Text> : <Stack gap="sm">
+            {read(journal).map((event, i) => <Text key={String(i)}>
+              {new Date(event.at).toLocaleString()} · {displayState(event.state)}{event.reason ? ' · ' + event.reason : ''}
+            </Text>)}
+            <Collapsible title={t("Details")}><Code block>{JSON.stringify(read(journal), null, 2)}</Code></Collapsible>
+          </Stack>}
+        <Button variant="ghost" disabled={read(journalLoading)} onPress={loadHistory}>{t("Refresh status")}</Button>
+        <Button variant="ghost" disabled={read(journalLoading) || !read(diagnostics)} onPress={saveDiagnostics}>{t('Export diagnostics')}</Button>
+      </Stack> : null}
 
     {section === 'statistics' ? <Stack gap="md">
       <Card title={t('OpenRouter balance')}>

@@ -1,6 +1,12 @@
 import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
 export const bytes = (value: string): number => new TextEncoder().encode(value).length
+export function textLimitWarning(value: string, limit: number): Message | null {
+  const size = bytes(value)
+  if (size > limit) return 'Text is too long. Shorten it to continue.'
+  return size >= limit * 0.9 ? 'Text is close to the length limit.' : null
+}
+
 export function displayState(value: string, automatic = false): string {
   if (automatic && value === 'submitted') return t('Waiting for the executor to finish and report checks.')
   const labels: Record<string, Message> = {

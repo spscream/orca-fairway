@@ -225,8 +225,8 @@ test('direct Orca agent-launch response confirms one dispatch and never permits 
   await assert.rejects(f.engine.launch(plan.id, 'Synthetic launch contract', workspace), /plan_not_launchable/)
   assert.equal(f.calls.length, 1)
 })
-test('extended coordinator envelopes require a forced profile and never reach JEV; ordinary routing stays capped', async () => {
-  const f = fixture({ live: true, execution: true }), task = 'x'.repeat(5000)
+test('a forced coordinator envelope can exceed the direct-task cap without reaching JEV', async () => {
+  const f = fixture({ live: true, execution: true }), task = 'x'.repeat(9000)
   await assert.rejects(f.engine.plan(task, 'codex', workspace), /invalid_task/)
   await assert.rejects(f.engine.plan(task, 'codex', workspace, randomUUID(), undefined, { coordinator: true }), /invalid_coordinator_plan/)
   const p = await f.engine.plan(task, 'auto', workspace, randomUUID(), undefined, { coordinator: true, profileId: 'standard' })
@@ -274,7 +274,7 @@ test('workflow prompt bounds and purpose guards do not widen direct task or JEV 
   const p = await f.engine.plan('я'.repeat(32768), 'auto', workspace, undefined, undefined, options)
   assert.equal(p.purpose, 'workflow')
   await assert.rejects(f.engine.plan('я'.repeat(32769), 'auto', workspace, undefined, undefined, options), /workflow_prompt_too_large/)
-  await assert.rejects(f.engine.plan('x'.repeat(4097), 'codex', workspace), /invalid_task/)
+  await assert.rejects(f.engine.plan('x'.repeat(8193), 'codex', workspace), /invalid_task/)
   await assert.rejects(f.engine.plan('x'.repeat(5000), 'auto', workspace, undefined, undefined, { ...options, routingTask: 'x'.repeat(4097) }), /invalid_task/)
   for (const bad of [{ workflow: true }, { ...options, allowedAgents: [] }, { ...options, allowedAgents: ['codex', 'codex'] }, { ...options, profileId: 'standard' }, { ...options, coordinator: true }]) await assert.rejects(f.engine.plan('x'.repeat(5000), 'auto', workspace, undefined, undefined, bad as any), /invalid_workflow_plan/)
   await assert.rejects(f.engine.plan('x'.repeat(5000), 'codex', workspace, undefined, undefined, options), /invalid_workflow_plan/)
@@ -287,4 +287,17 @@ test('changing a key revokes a prepared launch without hashing or logging its va
   await assert.rejects(f.engine.launch(p.id, 'Synthetic task', workspace), /plan_changed/)
   assert.equal(await f.engine.isCurrent(p, f.config), false)
   assert.equal(f.calls.length, 0)
+})
+
+test('a direct task uses the shared 8192-byte limit through routing and launch', async () => {
+  const f = fixture({ live: true, execution: true })
+  const task = 'я'.repeat(4096)
+  const plan = await f.engine.plan(task, 'codex', workspace)
+  assert.equal(plan.reason, 'selected')
+  assert.equal(JSON.parse(f.traffic.find(t => t.body)!.body!).state.task_description, task)
+  assert.equal(f.calls.length, 0)
+  const launched = await f.engine.launch(plan.id, task, workspace)
+  assert.equal(launched.state, 'submitted')
+  assert.equal(f.calls[0]?.[1], task)
+  await assert.rejects(f.engine.plan(task + 'x', 'codex', workspace), /invalid_task/)
 })

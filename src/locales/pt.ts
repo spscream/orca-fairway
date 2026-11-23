@@ -1,5 +1,17 @@
 import type { Message } from './en.ts'
 export default {
+  "Run to result": "Executar até o resultado",
+  "Preparing the plan automatically.": "O plano está sendo preparado automaticamente.",
+  "The automatic correction limit was reached.": "O limite de correções automáticas foi atingido.",
+  "Run to result authorizes the coordinator and up to 8 steps, with up to 2 correction cycles. JEV and agent usage are billed separately.": "A execução autoriza o coordenador e até 8 etapas, com até 2 ciclos de correção. O JEV e os agentes são cobrados separadamente.",
+  "A saved workflow or plan record is missing.": "Falta um registro do fluxo de trabalho ou do plano.",
+  "The saved workflow or plan contains inconsistent data.": "O fluxo de trabalho ou o plano salvo contém dados inconsistentes.",
+  "Current section": "Seção atual",
+  "Export diagnostics": "Exportar diagnóstico",
+  "Text is too long. Shorten it to continue.": "O texto está longo demais. Encurte-o para continuar.",
+  "Text is close to the length limit.": "O texto está próximo do limite de tamanho.",
+  "Let JEV choose": "Deixar o JEV escolher",
+  "Preparing with JEV may use one paid decision. Only this brief is sent to OpenRouter.": "A preparação com JEV pode usar uma decisão paga. Apenas este resumo é enviado ao OpenRouter.",
   "Statistics": "Estatísticas",
   "JEV usage": "Uso do JEV",
   "Unable to load status.": "Não foi possível carregar o status.",

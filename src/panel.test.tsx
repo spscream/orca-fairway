@@ -295,13 +295,13 @@ test('F08: balance errors are local and a successful retry clears them without e
 test('F09: multibyte task and coordinator inputs block requests before byte limits are exceeded', async () => {
   let requests = 0
   const view = await mount(panel, { host: mockHost({ requests: { 'fairway.status': () => status(), 'fairway.plan': () => { requests++; return example } } }) })
-  await view.type({ label: 'Task description' }, 'я'.repeat(2049)); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
-  await view.type({ label: 'Task description' }, '😀'.repeat(1024), { replace: true }); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, false)
+  await view.type({ label: 'Task description' }, 'я'.repeat(4097)); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, true)
+  await view.type({ label: 'Task description' }, '😀'.repeat(2048), { replace: true }); assert.equal(view.find({ text: 'Select profile' })?.props.disabled, false)
   await view.press({ label: 'Workflow', type: 'IconButton' }); await view.type({ label: 'Coordinator task' }, 'я'.repeat(4097))
   assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true)
   await view.type({ label: 'Coordinator task' }, 'я'.repeat(1693), { replace: true })
   assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, false)
-  assert.ok(JSON.stringify(view.tree()).includes('3386'))
+  assert.equal(JSON.stringify(view.tree()).includes('3386'), false)
   assert.equal(requests, 0); await view.unmount()
 })
 test('F10: a restored audit tab loads events and distinguishes failure from emptiness', async () => {
@@ -578,5 +578,75 @@ test('automatic approval follows acceptance criteria and separate billing disclo
     const criteria = page.indexOf('Acceptance:')
     const billing = page.indexOf('executor usage is billed separately')
     assert.ok(criteria >= 0 && billing > criteria && approval > billing)
+  } finally { await view.unmount() }
+})
+
+test('coordinator routing requires a separate brief and prepare never dispatches', async () => {
+  const workflow = auditedWorkflow('planned')
+  let prepares = 0
+  const host = mockHost({ requests: {
+    'fairway.status': () => ({ ...status(), config: { ...DEFAULT_CONFIG, live: true }, keyPresent: true }),
+    'fairway.workflow.create': input => {
+      prepares++
+      assert.deepEqual(input, { task: 'Synthetic full task', routingBrief: 'Synthetic brief' })
+      return workflow
+    },
+    'fairway.workflow.action': () => { throw new Error('unexpected dispatch') },
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    await view.type({ label: 'Coordinator task' }, 'Synthetic full task')
+    assert.equal(view.find({ label: 'JEV routing brief:' }), null)
+    await view.select({ label: 'Coordinator profile' }, '@jev')
+    assert.equal(view.find({ text: 'Prepare analysis' })?.props.disabled, true)
+    await view.type({ label: 'JEV routing brief:' }, 'Synthetic brief')
+    await view.press({ text: 'Prepare analysis' })
+    assert.equal(prepares, 1)
+    assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})
+
+test('running to result sends explicit authorization only on button press', async () => {
+  const workflow = auditedWorkflow('planned'), creations: unknown[] = []
+  const host = mockHost({ requests: {
+    'fairway.status': () => status(true),
+    'fairway.workflow.create': input => { creations.push(input); return workflow },
+    'fairway.workflow.action': () => { throw new Error('unexpected dispatch') },
+  } })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'workflow' } } })
+  try {
+    assert.equal(view.find({ text: 'Run to result' })?.props.disabled, true)
+    await view.type({ label: 'Coordinator task' }, 'Synthetic full task')
+    assert.deepEqual(creations, [])
+    await view.press({ text: 'Run to result' })
+    assert.deepEqual(creations, [{ task: 'Synthetic full task', profileId: DEFAULT_CONFIG.fallback, endToEnd: true }])
+    assert.deepEqual(view.errors, [])
+  } finally { await view.unmount() }
+})
+
+test('the active section has an accessible name and diagnostics save only through a button press', async () => {
+  const event = { at: 1, state: 'automatic_paused', reason: 'checks_failed', stage: 'report' }
+  const unsafe = { ...event, task: 'private task marker', key: 'private credential marker', response: 'raw service marker' }
+  const host = mockHost({
+    results: { 'files.saveAs': { status: 'saved' } },
+    requests: { 'fairway.status': () => status(), 'fairway.history': () => ({
+      json: JSON.stringify([unsafe]), exportJson: JSON.stringify({ version: 1, events: [unsafe] }),
+    }) },
+  })
+  const view = await mount(panel, { host })
+  try {
+    assert.ok(view.find({ label: 'Task · Current section', type: 'IconButton' }))
+    assert.equal(host.callsOf('files.saveAs').length, 0)
+    await view.press({ label: 'Audit log', type: 'IconButton' })
+    assert.ok(view.find({ label: 'Audit log · Current section', type: 'IconButton' }))
+    const tree = JSON.stringify(view.tree())
+    assert.ok(tree.includes('checks_failed'))
+    for (const marker of ['private task marker', 'private credential marker', 'raw service marker']) assert.ok(!tree.includes(marker))
+    await view.press({ text: 'Export diagnostics' })
+    assert.deepEqual(host.callsOf('files.saveAs'), [
+      { suggestedName: 'fairway-diagnostics.json', mimeType: 'application/json', data: JSON.stringify({ version: 1, events: [event] }, null, 2) + '\n' },
+    ])
+    assert.deepEqual(view.errors, [])
+    assert.deepEqual(view.refusals, [])
   } finally { await view.unmount() }
 })

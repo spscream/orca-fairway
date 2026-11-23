@@ -5,6 +5,26 @@ import { t } from './ui-i18n.ts'
 import type { Message } from './core/i18n.ts'
 import type { Status, WorkflowAction } from './protocol.ts'
 import type { AutomaticReason } from './core/workflow.ts'
+export const automaticMessages: Record<AutomaticReason, Message> = {
+  analysis_needs_input: 'Resolve open questions and unavailable sources with the coordinator first.',
+  repair_limit: 'The automatic correction limit was reached.',
+  review_required: 'Review the currently dispatched subtask first.',
+  prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
+  budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
+  missing_key: 'Save an OpenRouter key in Settings.', routing_timeout: 'Request timed out',
+  low_confidence: 'JEV could not select a profile confidently. Review the profile descriptions before retrying.',
+  invalid_choice: 'JEV returned an invalid choice. Automatic execution is paused.',
+  pricing_unbounded: 'JEV pricing could not be bounded. No decision request was sent.',
+  http_error: 'OpenRouter rejected the request or was unavailable. Check the key and service status.',
+  paused: 'Automatic execution is paused.', interrupted: 'The worker restarted. Review the current step before continuing.',
+  settings_changed: 'Settings changed. Continue to select profiles under the new settings.', expired: 'The automatic execution time or launch limit was reached.',
+  execution_disabled: 'Execution is disabled in Fairway settings.', routing_failed: 'Automatic routing stopped. Check JEV, the budget, and the key.',
+  unverified: 'The model and effort pair is unverified.', dispatch_unknown: 'The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.',
+  agent_blocked: 'The executor needs your input. Open its Orca chat.', monitor_unavailable: 'Orca could not confirm the executor state. Automatic execution is paused.',
+  result_missing: 'The executor report is missing or invalid.', result_invalid: 'The executor report is missing or invalid.',
+  checks_failed: 'The executor reported failed checks. Review the result before continuing.', legacy_review: 'This step started manually. Accept its result once; the following steps will run automatically.',
+  step_timeout: 'The automatic execution time or launch limit was reached.', operation_failed: 'The operation did not complete. Check the settings and Orca availability. Secrets and process output are hidden.'
+}
 export function automaticPanel(s: Status | null, action: (action: WorkflowAction) => unknown, waiting: boolean, openSettings?: () => void) {
   const w = s?.workflow
   if (!w?.analysis || w.cancelled) return null
@@ -13,24 +33,6 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
   const budgetBlocked = !allowance.sufficient && !hasSubmitted, keyBlocked = !!s?.config.live && !s.keyPresent && !hasSubmitted
   const recordedCause = a?.reason === 'routing_failed' ? storedRoutingFailure(w) : a?.reason
   const cause = (recordedCause === 'budget_exhausted' && allowance.sufficient) || (recordedCause === 'checks_failed' && !hasSubmitted) ? 'paused' : recordedCause
-  const messages: Record<AutomaticReason, Message> = {
-    review_required: 'Review the currently dispatched subtask first.',
-    prompt_too_large: 'The prepared executor prompt exceeds 65536 UTF-8 bytes.',
-    budget_exhausted: 'The JEV allowance cannot cover the remaining steps. Increase the limits in Settings, then continue.',
-    missing_key: 'Save an OpenRouter key in Settings.', routing_timeout: 'Request timed out',
-    low_confidence: 'JEV could not select a profile confidently. Review the profile descriptions before retrying.',
-    invalid_choice: 'JEV returned an invalid choice. Automatic execution is paused.',
-    pricing_unbounded: 'JEV pricing could not be bounded. No decision request was sent.',
-    http_error: 'OpenRouter rejected the request or was unavailable. Check the key and service status.',
-    paused: 'Automatic execution is paused.', interrupted: 'The worker restarted. Review the current step before continuing.',
-    settings_changed: 'Settings changed. Continue to select profiles under the new settings.', expired: 'The automatic execution time or launch limit was reached.',
-    execution_disabled: 'Execution is disabled in Fairway settings.', routing_failed: 'Automatic routing stopped. Check JEV, the budget, and the key.',
-    unverified: 'The model and effort pair is unverified.', dispatch_unknown: 'The dispatch outcome is unknown. Further dispatch and dependent steps are blocked. Inspect Orca.',
-    agent_blocked: 'The executor needs your input. Open its Orca chat.', monitor_unavailable: 'Orca could not confirm the executor state. Automatic execution is paused.',
-    result_missing: 'The executor report is missing or invalid.', result_invalid: 'The executor report is missing or invalid.',
-    checks_failed: 'The executor reported failed checks. Review the result before continuing.', legacy_review: 'This step started manually. Accept its result once; the following steps will run automatically.',
-    step_timeout: 'The automatic execution time or launch limit was reached.', operation_failed: 'The operation did not complete. Check the settings and Orca availability. Secrets and process output are hidden.'
-  }
   const blocked = w.analysis.questions.length > 0 || w.analysis.sources.some(source => source.status !== 'read') || Object.values(w.runs).some(run => ['dispatch_pending', 'dispatch_unknown', 'dispatch_failed'].includes(run.state))
   return <Card title={t('Automatic execution')}>
     <Stack gap="sm">
@@ -38,10 +40,10 @@ export function automaticPanel(s: Status | null, action: (action: WorkflowAction
       <Text weight="semibold">{complete ? t('Plan completed') : t('Profiles are selected and steps run one at a time.')}</Text>
       {Object.values(w.runs).some(run => run.state === 'submitted' && run.plan?.reason === 'low_confidence_fallback') ? <Text tone="warning">{t('Low JEV confidence. Using the configured fallback profile.')}</Text> : null}
       {Object.values(w.runs).some(run => run.state === 'submitted' && run.plan?.reason === 'low_confidence_ranked') ? <Text tone="warning">{t('Low JEV confidence. The leading choice meets the fallback level.')}</Text> : null}
-      {!running && budgetBlocked ? <Text tone="warning">{t(messages.budget_exhausted)}</Text> : null}
+      {!running && budgetBlocked ? <Text tone="warning">{t(automaticMessages.budget_exhausted)}</Text> : null}
       {!running && keyBlocked && cause !== 'missing_key' ? <Text tone="warning">{t('Save an OpenRouter key in Settings.')}</Text> : null}
       {a?.failureStage ? <Code>{a.failureStage} / {a.reason} / {w.id}</Code> : null}
-      {cause && !(budgetBlocked && cause === 'budget_exhausted') ? <Text tone="warning">{t(messages[cause])}</Text> : null}
+      {cause && !(budgetBlocked && cause === 'budget_exhausted') ? <Text tone="warning">{t(automaticMessages[cause])}</Text> : null}
       {!complete ? <>
         {!running ? <Text muted>{t('Running approves this analysis and authorizes the remaining steps in this workspace.')}</Text> : null}
         <Text muted>{t('Executor reports are accepted automatically after Orca confirms completion; this is not independent verification.')}</Text>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Add **Run to result** to authorize the coordinator and sequential execution with one explicit action. When needed, Fairway adds a correction and a verification step, then makes dependent steps wait for verification.
+- Allow JEV to select the coordinator using a separate brief. Use the same 8192-byte task limit on the Task and Workflow tabs, with warnings near the limit.
+- Validate saved plans and bind new analysis files to their coordinator launch. Add a metadata-only diagnostics export.
+- Harden Pi bridge cancellation and routing brief handling.
+
 ## 0.8.8
 
 - Refresh the OpenRouter balance periodically while the Fairway panel is open.

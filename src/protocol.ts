@@ -8,10 +8,10 @@ declare module 'orca' {
   interface PluginRequests {
     'fairway.balance': { output: BalanceSnapshot }
     'fairway.workflow.inspect': { input: { id: string }; output: AnalysisInspection }
-    'fairway.workflow.create': { input: { task: string; profileId: string }; output: Workflow }
+    'fairway.workflow.create': { input: { task: string; profileId: string; routingBrief?: never; endToEnd?: true } | { task: string; routingBrief: string; profileId?: never; endToEnd?: true }; output: Workflow }
     'fairway.workflow.action': { input: { id: string; action: WorkflowAction; stepId?: string; review?: string }; output: Workflow }
     'fairway.status': { output: Status }
-    'fairway.history': { output: { json: string } }
+    'fairway.history': { output: { json: string; exportJson?: string } }
     'fairway.config': { input: { config: string }; output: Status }
     'fairway.key': { input: { key: string }; output: { present: boolean } }
     'fairway.plan': { input: { id: string; task: string; agent: Agent }; output: Plan }
