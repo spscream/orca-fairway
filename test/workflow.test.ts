@@ -2,8 +2,8 @@ import { parseJson } from '../src/core/json.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, rm, writeFile, symlink, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, writeFile, symlink, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { digest, Engine } from '../src/core/engine.ts'
 import { DEFAULT_CONFIG } from '../src/core/config.ts'
 import { Workflows, validateAnalysis, coordinatorPrompt, type Analysis, type Artifacts } from '../src/core/workflow.ts'
@@ -143,6 +143,39 @@ test('private artifacts reject traversal, symlinks and oversized files', async (
     await writeFile(path, 'x'.repeat(32769)); await assert.rejects(artifacts.read(id), /invalid_analysis/)
     await rm(path); const target = join(root, 'synthetic.txt'); await writeFile(target, '{}'); await symlink(target, path)
     await assert.rejects(artifacts.read(id), /artifact_path_refused/)
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+test('new workflows exchange atomic reports inside the workspace and reject another workspace’s path', async () => {
+  const root = await realpath(await mkdtemp(join(process.cwd(), '.test-workspace-reports-')))
+  const local = { ...workspace, path: join(root, 'project') }
+  const f = fixture({ execution: true })
+  const artifacts = new PrivateArtifacts(join(root, 'legacy'))
+  const flows = new Workflows(f.store, f.engine, artifacts)
+  try {
+    await mkdir(local.path)
+    const w = await flows.create('Synthetic task', 'standard', local)
+    const base = join(local.path, '.orca', 'fairway-workflows')
+    assert.equal(w.artifact, join(base, w.id, 'analysis.json'))
+    assert.equal(await readFile(join(base, '.gitignore'), 'utf8'), '*\n')
+    await writeFile(w.artifact, JSON.stringify({ ...analysis(), coordinatorPlanId: w.coordinator.id }))
+    await flows.read(w.id, local); await flows.approve(w.id, local)
+    const routed = await flows.route(w.id, 'implement', local, true)
+    const run = routed.runs.implement!
+    const result = run.result!
+    assert.equal(dirname(result.path), dirname(w.artifact))
+    await flows.launch(w.id, 'implement', local, true)
+    const report = { version: 2, workflowId: w.id, stepId: 'implement', planId: run.plan!.id, token: result.token,
+      status: 'completed', summary: 'Synthetic result', checks: [{ name: 'Synthetic check', status: 'passed', evidence: 'Synthetic evidence' }], questions: [], findings: [] }
+    await writeFile(result.path + '.tmp', JSON.stringify(report), { flag: 'wx' })
+    await rename(result.path + '.tmp', result.path)
+    assert.deepEqual(structuredClone(await flows.result(w.id, 'implement', local)), report)
+    const saved = await flows.get(w.id, local)
+    saved.runs.implement!.result!.path = artifacts.resultPath(w.id, 'implement', result.token)
+    await f.store.set('workflow:' + w.id, saved)
+    await assert.rejects(flows.get(w.id, local), /invalid_workflow/)
+    await rm(join(local.path, '.orca'), { recursive: true })
+    await symlink(root, join(local.path, '.orca'), 'dir')
+    await assert.rejects(artifacts.create(randomUUID(), local.path), /artifact_path_refused/)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 test('missing task references block approval even when other sources claim to be read', async () => {

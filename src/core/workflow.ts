@@ -28,6 +28,7 @@ export interface StepRun {
 export interface Workflow {
   id: string; workspace: Workspace; task: string; artifact: string; coordinatorTask: string; coordinator: Plan
   analysisBinding?: string
+  artifactLocation?: 'workspace'
   automatic?: AutomaticState
   analysis: Analysis | null; approvedHash: string | null; cancelled: boolean; runs: Record<string, StepRun>
 }
@@ -35,12 +36,15 @@ const automaticReasons = ['budget_exhausted', 'missing_key', 'routing_timeout', 
 export type AutomaticReason = typeof automaticReasons[number]
 export interface AutomaticState { state: 'running' | 'paused' | 'completed'; reason: AutomaticReason | null; configHash: string; approvedHash: string | null; endToEnd?: true; repairs?: number; expiresAt: number; dispatches: number; limit: number; failureStage?: 'prepare' | 'observe' | 'report' | 'dispatch' }
 export interface Artifacts {
-  create(id: string): Promise<string>
-  analysisPath?(id: string): string
-  resultPath?(id: string, stepId: string, token: string): string
-  read(id: string): Promise<string | null>
-  createResult?(id: string, stepId: string, token: string): Promise<string>
-  readResult?(id: string, stepId: string, token: string): Promise<string | null>
+  create(id: string, workspace?: string): Promise<string>
+  analysisPath?(id: string, workspace?: string): string
+  resultPath?(id: string, stepId: string, token: string, workspace?: string): string
+  read(id: string, workspace?: string): Promise<string | null>
+  createResult?(id: string, stepId: string, token: string, workspace?: string): Promise<string>
+  readResult?(id: string, stepId: string, token: string, workspace?: string): Promise<string | null>
+}
+function artifactWorkspace(w: Workflow): string | undefined {
+  return w.artifactLocation === 'workspace' ? w.workspace.path : undefined
 }
 const fields = (x: Record<string, unknown>, names: string[]) => Object.keys(x).length === names.length && names.every(name => Object.hasOwn(x, name))
 export interface AnalysisIssue { path: string; rule: 'bytes' | 'items' | 'format' | 'dependencies'; actual?: number; limit?: number }
@@ -159,8 +163,10 @@ export class Workflows {
     requireThat(typeof value.cancelled === 'boolean' && record(value.runs), 'invalid_workflow')
     validateCoordinatorTask(value.task)
     validateCoordinatorPrompt(value.coordinatorTask)
+    requireThat(value.artifactLocation === undefined || value.artifactLocation === 'workspace', 'invalid_workflow')
+    const artifactRoot = value.artifactLocation === 'workspace' ? workspace.path : undefined
     requireThat(typeof value.artifact === 'string' && isAbsolute(value.artifact) && !value.artifact.includes('\0') &&
-      (!this.artifacts.analysisPath || value.artifact === this.artifacts.analysisPath(id)), 'invalid_workflow')
+      (!this.artifacts.analysisPath || value.artifact === this.artifacts.analysisPath(id, artifactRoot)), 'invalid_workflow')
     const coordinator = await this.checkPlan(value.coordinator, workspace, 'coordinator')
     requireThat(coordinator.taskHash === digest(value.coordinatorTask) && value.coordinatorTask.endsWith(
       'Output file (write only this plan artifact): ' + JSON.stringify(value.artifact) + '\nTask data: ' + JSON.stringify(value.task)), 'invalid_workflow')
@@ -194,7 +200,7 @@ export class Workflows {
       if (run.result !== undefined) {
         requireThat(record(run.result) && savedId(run.result.token) && typeof run.result.path === 'string' &&
           isAbsolute(run.result.path) && !run.result.path.includes('\0') && basename(run.result.path) === `result-${step.id}-${run.result.token}.json` &&
-          (!this.artifacts.resultPath || run.result.path === this.artifacts.resultPath(id, step.id, run.result.token)), 'invalid_workflow')
+          (!this.artifacts.resultPath || run.result.path === this.artifacts.resultPath(id, step.id, run.result.token, artifactRoot)), 'invalid_workflow')
       }
       if (run.outcome !== undefined) {
         requireThat(run.result && record(run.outcome) && ['submitted', 'completed'].includes(run.state), 'invalid_step_result')
@@ -240,7 +246,7 @@ export class Workflows {
       if (run.state === 'completed' && w.automatic?.endToEnd && run.outcome?.repair) {
         return { version: 3, workflowId: id, stepId, planId: run.plan!.id, token: run.result.token, ...run.outcome }
       }
-      const raw = await this.artifacts.readResult(id, stepId, run.result.token)
+      const raw = await this.artifacts.readResult(id, stepId, run.result.token, artifactWorkspace(w))
       if (raw === null) return null
       requireThat(Buffer.byteLength(raw) <= 8192, 'invalid_step_result')
       const result = validateStepResult(parseJson(raw), id, stepId, run)
@@ -257,10 +263,10 @@ export class Workflows {
     return this.serial(async () => {
       const current = await this.current(workspace)
       requireThat(!current || current.cancelled || (current.analysis && current.analysis.steps.every(s => current.runs[s.id]?.state === 'completed')), 'workflow_active')
-      const id = randomUUID(), analysisBinding = randomUUID(), artifact = await this.artifacts.create(id)
+      const id = randomUUID(), analysisBinding = randomUUID(), artifact = await this.artifacts.create(id, workspace.path)
       const coordinatorTask = coordinatorPrompt(task, artifact, analysisBinding, adaptive)
       const coordinator = await this.engine.plan(coordinatorTask, 'auto', workspace, analysisBinding, undefined, { profileId, routingTask: routingBrief, coordinator: true })
-      const w: Workflow = { id, workspace, task, artifact, coordinatorTask, coordinator, analysisBinding, analysis: null, approvedHash: null, cancelled: false, runs: {} }
+      const w: Workflow = { id, workspace, task, artifact, coordinatorTask, coordinator, analysisBinding, artifactLocation: 'workspace', analysis: null, approvedHash: null, cancelled: false, runs: {} }
       await this.engine.workflowEvent(id, 'analysis_prepared'); await this.save(w)
       await this.store.set('workflowCurrent:' + digest(workspace), id); return w
     })
@@ -299,7 +305,7 @@ export class Workflows {
   async inspect(id: string, workspace: Workspace): Promise<AnalysisInspection> {
     const w = await this.get(id, workspace)
     try {
-      const raw = await this.artifacts.read(w.id)
+      const raw = await this.artifacts.read(w.id, artifactWorkspace(w))
       if (raw === null) return { valid: false, issue: { path: 'file', rule: 'format' } }
       if (Buffer.byteLength(raw) > 32768) return { valid: false, issue: { path: 'file', rule: 'bytes', actual: Buffer.byteLength(raw), limit: 32768 } }
       readBoundAnalysis(raw, w); return { valid: true }
@@ -315,7 +321,7 @@ export class Workflows {
   async read(id: string, workspace: Workspace): Promise<Workflow> {
     return this.serial(async () => {
       const w = await this.get(id, workspace); requireThat(!w.cancelled, 'workflow_cancelled')
-      const raw = await this.artifacts.read(w.id); requireThat(raw !== null, 'analysis_not_found')
+      const raw = await this.artifacts.read(w.id, artifactWorkspace(w)); requireThat(raw !== null, 'analysis_not_found')
       requireThat(Buffer.byteLength(raw) <= 32768, 'invalid_analysis')
       const analysis = readBoundAnalysis(raw, w)
       requireThat(!w.approvedHash || w.approvedHash === digest(analysis), 'analysis_already_approved')
@@ -391,7 +397,7 @@ export class Workflows {
       if (!automatic) delete run.result
       if (automatic) {
         requireThat(this.artifacts.createResult && this.artifacts.readResult, 'result_contract_missing')
-        const token = randomUUID(); run.result = { token, path: await this.artifacts.createResult(id, stepId, token) }
+        const token = randomUUID(); run.result = { token, path: await this.artifacts.createResult(id, stepId, token, artifactWorkspace(w)) }
         // The result contract is bound before hashing the exact executor prompt.
         run.plan = { id: planId } as Plan
       }

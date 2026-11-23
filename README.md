@@ -13,7 +13,7 @@ An Orca plugin that uses JEV to select an allowlisted **agent + model + effort**
 Requires **Orca 1.4.265+**. Development requires **Node.js 22+**. There are no runtime dependencies or build steps: Orca loads TypeScript directly.
 
 ```sh
-orca plugin install spscream/orca-fairway@v0.9.0 --json
+orca plugin install spscream/orca-fairway@v0.9.1 --json
 ```
 
 The first command reports `approval_required` and lists the requested access. Review it, then run the exact command Orca provides with its `--approve` fingerprint. Installation does not run `npm install` or enable paid requests. On Linux outside an Orca terminal, use `orca-ide` rather than the system screen reader named `orca`. No additional catalog is required.
@@ -116,7 +116,7 @@ Limits: 16 KiB request, 8192-byte UTF-8 task, 64 KiB response, 8-second network 
 
 The JEV key stays in own Orca secret storage. Fairway does not read `.env` files, extract subscription credentials, or move authentication across providers. Child CLIs do not inherit `OPENROUTER_API_KEY` or `OPENROUTER_TOKEN`; configure their own authentication separately if needed.
 
-Audit storage keeps 200 metadata events; **Audit log** displays the latest 20. No task text, HTTP bodies, process output, or keys are logged. Routing plans store task/workspace hashes rather than task text. Workflow data separately contains the original task, analysis, instructions, and accepted summaries, stored locally. Analysis files live under `~/.config/fairway-for-orca/workflows/` without automatic deletion. Removing plugin data removes local accounting, not the account-wide OpenRouter limit.
+Audit storage keeps 200 metadata events; **Audit log** displays the latest 20. No task text, HTTP bodies, process output, or keys are logged. Routing plans store task/workspace hashes rather than task text. Workflow data separately contains the original task, analysis, instructions, and accepted summaries, stored locally. New plans put analysis and executor reports under `.orca/fairway-workflows/` in the selected workspace, with a local Git ignore file. Older plans retain their original files and paths. Reports remain on disk after closing a plan. Removing plugin data removes local accounting, not the account-wide OpenRouter limit.
 
 ## Development
 

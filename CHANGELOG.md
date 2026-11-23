@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+
+- Write new workflow analysis and executor reports inside the selected workspace so sandboxed agents can report results without broader permissions. Keep the original paths for saved workflows.
+
 ## 0.9.0
 
 - Add **Run to result** to authorize the coordinator and sequential execution with one explicit action. When needed, Fairway adds a correction and a verification step, then makes dependent steps wait for verification.

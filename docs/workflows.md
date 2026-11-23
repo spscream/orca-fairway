@@ -21,7 +21,7 @@ The coordinator profile is explicit because the task has not yet been analyzed. 
 
 ## Storage and boundaries
 
-Own Orca storage contains the task, accepted analysis, instructions, states, and short reviews. These are local working data, separate from the metadata-only audit. Analysis files live under `~/.config/fairway-for-orca/workflows/<id>/`; Unix directories have mode 0700. They stay outside Git and are not automatically deleted on workflow closure.
+Own Orca storage contains the task, accepted analysis, instructions, states, and short reviews. These are local working data, separate from the metadata-only audit. For new plans, the coordinator and executors write their reports under `.orca/fairway-workflows/<id>/` inside the selected workspace. Fairway creates the report directories with Unix mode 0700 and creates a Git ignore file for the report area. Saved older plans keep using `~/.config/fairway-for-orca/workflows/<id>/`. Reports remain on disk after closing a plan. If a prior plan stopped because its output path was inaccessible, close it and start a new plan to use the workspace path.
 
 Only `analysis.json` in a pre-created private directory is read. Limit: 32768 bytes. Duplicate JSON keys, extra fields, and symbolic links are rejected. Paths supplied by the coordinator are neither executed nor used for file reads. On Windows, manage ACLs through the OS.
 
